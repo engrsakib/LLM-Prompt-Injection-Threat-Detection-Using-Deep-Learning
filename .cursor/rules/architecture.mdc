@@ -1,0 +1,27 @@
+---
+description: Modular architecture and separation of concerns for the MRI XAI pipeline
+alwaysApply: true
+---
+
+# Architecture Principles
+
+- Keep the project **modular**, **production-ready**, and **pip-installable** (`pip install -e .`).
+- Separate concerns into dedicated modules — do not merge unrelated logic:
+  - `dataset.py` — data loading, splits, transforms
+  - `models/` — Swin, LoRA, SAM, Florence-2 architectures
+  - `train.py` — training loops and checkpointing
+  - `evaluate.py` — metrics and baselines
+  - `explainability.py` — Grad-CAM, attention, SAM overlays
+  - `report.py` — HTML / NL diagnostic reports
+  - `config.py` + `utils/paths.py` — configuration and path resolution
+- **No duplicate code.** Extract shared logic into `utils/` rather than copying cells or blocks.
+- **Do not extend legacy notebook patterns.** Treat `legacy/notebook8010ef336b.ipynb` as read-only reference for domain logic (class names, split ratios, baseline metrics) — never add new pipeline code to notebooks except `Colab_Runner.ipynb` orchestration cells.
+- Notebooks must **orchestrate only**: clone, install, call CLI entry points — no business logic inline.
+
+```python
+# ❌ BAD — training logic in a notebook cell
+model.fit(train_gen, epochs=20)
+
+# ✅ GOOD — shell/CLI entry point
+# python -m neuro_mri_xai.train --config configs/default.yaml
+```

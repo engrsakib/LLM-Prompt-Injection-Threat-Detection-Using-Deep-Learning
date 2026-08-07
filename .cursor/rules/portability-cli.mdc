@@ -1,0 +1,30 @@
+---
+description: Dynamic paths and CLI portability for Kaggle, Colab, and local runs
+globs: "{src,scripts}/**/*.py"
+alwaysApply: false
+---
+
+# Kaggle & Colab Portability
+
+- **Never hardcode** absolute Windows paths, `/kaggle/input/...`, or `/content/...` in core modules.
+- Resolve all paths via `pathlib.Path` through `neuro_mri_xai.utils.paths` or `load_config()`.
+
+```python
+# ❌ BAD
+DATASET_PATH = "/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data"
+
+# ✅ GOOD
+from neuro_mri_xai.config import load_config
+config = load_config()
+data_dir = config.dataset.data_dir
+```
+
+- Override paths with env vars when needed: `NEURO_MRI_DATA_DIR`, `NEURO_MRI_PROJECT_ROOT`.
+- Every entry-point script (`train.py`, `evaluate.py`, `report.py`, `scripts/*.py`) must expose **argparse CLI** with `--config` defaulting to `configs/default.yaml`.
+- Hyperparameters belong in `configs/default.yaml`, not scattered as magic numbers in code.
+- Scripts must be runnable on Kaggle/Colab via standard shell commands:
+
+```bash
+python -m neuro_mri_xai.train --config configs/default.yaml
+python scripts/download_data.py --source kaggle
+```
