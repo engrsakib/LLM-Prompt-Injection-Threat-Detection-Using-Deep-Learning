@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 
 from neuro_mri_xai.config import load_config
+from neuro_mri_xai.data.dataset import ensure_dataset_available
 from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
 from neuro_mri_xai.explainability.pipeline import explain_sample
 from neuro_mri_xai.models.sam_roi import unload_sam
@@ -28,7 +29,8 @@ def run_xai(
     data_dir: str | None = None,
 ) -> dict:
     config = load_config(config_path, data_dir=data_dir)
-    if data_dir:
+    if data_dir is not None:
+        ensure_dataset_available(config)
         print(f"Using dataset: {config.dataset.data_dir}")
     out = ensure_dir(output_dir or config.explainability.figures_dir)
     model, class_names = load_checkpoint_model(checkpoint_path, config)

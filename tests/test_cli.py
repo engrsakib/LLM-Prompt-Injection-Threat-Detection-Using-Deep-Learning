@@ -37,3 +37,10 @@ def test_apply_data_dir_override_direct(tmp_path: Path) -> None:
     cfg = Config(dataset=DatasetConfig(data_dir=Path("data")))
     apply_data_dir_override(cfg, root)
     assert cfg.dataset.data_dir == root.resolve()
+
+
+def test_apply_data_dir_override_missing_defers_to_kagglehub(tmp_path: Path) -> None:
+    missing = tmp_path / "does-not-exist"
+    cfg = Config(dataset=DatasetConfig(data_dir=Path("data")))
+    apply_data_dir_override(cfg, missing)
+    assert cfg.dataset.data_dir == missing.resolve()

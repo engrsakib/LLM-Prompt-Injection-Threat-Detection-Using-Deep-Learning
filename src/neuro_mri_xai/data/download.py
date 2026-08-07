@@ -24,6 +24,7 @@ from neuro_mri_xai.utils.paths import (
     ensure_dir,
     find_kagglehub_cache,
     get_project_root,
+    resolve_dataset_root,
     resolve_imagefolder_root,
 )
 
@@ -37,12 +38,25 @@ def download_kagglehub(handle: str) -> Path:
     import kagglehub
 
     raw_path = Path(kagglehub.dataset_download(handle))
-    resolved = resolve_imagefolder_root(raw_path)
+    resolved = resolve_dataset_root(raw_path)
+    if resolved is None:
+        resolved = resolve_imagefolder_root(raw_path)
     if resolved is None:
         raise FileNotFoundError(
             f"kagglehub downloaded to {raw_path}, but no ImageFolder layout was found.",
         )
     return resolved.resolve()
+
+
+def resolve_kagglehub_dataset(handle: str) -> Path:
+    """Return cached or freshly downloaded ImageFolder root via kagglehub."""
+    cached = find_kagglehub_cache(handle)
+    if cached is not None:
+        logger.info("Using cached kagglehub dataset at %s", cached)
+        return cached
+    path = download_kagglehub(handle)
+    logger.info("Downloaded kagglehub dataset (%s) to %s", handle, path)
+    return path
 
 
 def download_kaggle(dataset_slug: str, dest: Path) -> Path:

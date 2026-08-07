@@ -16,7 +16,11 @@ from typing import Any
 
 import yaml
 
-from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
+from neuro_mri_xai.data.constants import (
+    DEFAULT_KAGGLEHUB_FALLBACK_HANDLE,
+    EXPECTED_CLASS_NAMES,
+    NUM_CLASSES,
+)
 from neuro_mri_xai.utils.paths import (
     get_data_root,
     get_project_root,
@@ -30,6 +34,7 @@ from neuro_mri_xai.utils.paths import (
 class DatasetConfig:
     source: str = "kagglehub"
     kagglehub_handle: str = "engrsakib02/neurological-disorders-mri-dataset-for-xai"
+    kagglehub_fallback_handle: str = DEFAULT_KAGGLEHUB_FALLBACK_HANDLE
     kaggle_dataset: str = "engrsakib02/neurological-disorders-mri-dataset-for-xai"
     kaggle_data_subdir: str = "data"
     gdrive_path: str = ""

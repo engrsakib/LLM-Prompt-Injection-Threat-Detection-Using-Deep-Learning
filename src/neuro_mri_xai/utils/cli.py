@@ -38,8 +38,6 @@ def apply_data_dir_override(config: Config, data_dir: str | Path | None) -> Conf
     elif path.is_dir():
         config.dataset.data_dir = path
     else:
-        raise FileNotFoundError(
-            f"Dataset directory not found: {path}. "
-            "Pass an existing path to --data-dir (outer mount or inner data/ folder).",
-        )
+        # Missing --data-dir: defer to kagglehub fallback in ensure_dataset_available()
+        config.dataset.data_dir = path
     return config

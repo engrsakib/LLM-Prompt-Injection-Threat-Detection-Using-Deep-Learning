@@ -17,6 +17,7 @@ from pathlib import Path
 from PIL import Image
 
 from neuro_mri_xai.config import load_config
+from neuro_mri_xai.data.dataset import ensure_dataset_available
 from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
 from neuro_mri_xai.explainability.pipeline import explain_sample
 from neuro_mri_xai.models.florence_reporter import generate_diagnostic_text, unload_florence
@@ -80,7 +81,8 @@ def generate_report(
     data_dir: str | None = None,
 ) -> Path:
     config = load_config(config_path, data_dir=data_dir)
-    if data_dir:
+    if data_dir is not None:
+        ensure_dataset_available(config)
         print(f"Using dataset: {config.dataset.data_dir}")
     output_dir = ensure_dir(output_dir or config.report.output_dir)
     image_path = Path(image)

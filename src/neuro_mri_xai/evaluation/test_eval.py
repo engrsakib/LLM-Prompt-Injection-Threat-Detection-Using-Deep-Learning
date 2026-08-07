@@ -16,6 +16,7 @@ import torch
 
 from neuro_mri_xai.config import load_config
 from neuro_mri_xai.data import get_dataloaders
+from neuro_mri_xai.data.dataset import ensure_dataset_available
 from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
 from neuro_mri_xai.evaluation.metrics import (
     evaluate_classifier,
@@ -37,6 +38,7 @@ def run_evaluation(
 ) -> dict:
     config = load_config(config_path, data_dir=data_dir)
     set_seed(config.dataset.seed)
+    ensure_dataset_available(config)
     print(f"Using dataset: {config.dataset.data_dir}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

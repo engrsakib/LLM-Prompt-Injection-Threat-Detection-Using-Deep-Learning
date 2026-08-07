@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -20,7 +21,7 @@ from torch.utils.data import DataLoader, Dataset, Subset
 
 from neuro_mri_xai.data.constants import (
     DEFAULT_KAGGLE_DATA_DIR,
-    DEFAULT_KAGGLE_MOUNT_ROOT,
+    DEFAULT_KAGGLEHUB_FALLBACK_HANDLE,
     EXPECTED_CLASS_NAMES,
     NUM_CLASSES,
 )
@@ -37,6 +38,40 @@ from neuro_mri_xai.utils.paths import (
 
 if TYPE_CHECKING:
     from neuro_mri_xai.config import Config
+
+logger = logging.getLogger(__name__)
+
+
+def _local_dataset_root(config: Config) -> Path | None:
+    """Return a valid local ImageFolder root when one exists on disk."""
+    data_dir = resolve_data_dir(config)
+    if not data_dir.is_dir():
+        return None
+    return resolve_imagefolder_root(data_dir)
+
+
+def _kagglehub_fallback_handle(config: Config) -> str:
+    handle = config.dataset.kagglehub_fallback_handle or DEFAULT_KAGGLEHUB_FALLBACK_HANDLE
+    return handle.strip()
+
+
+def _resolve_via_kagglehub(config: Config) -> Path:
+    """Download or locate dataset via kagglehub when local paths are unavailable."""
+    from neuro_mri_xai.data.download import resolve_kagglehub_dataset
+
+    handle = _kagglehub_fallback_handle(config)
+    logger.info("Local dataset unavailable; resolving via kagglehub (%s)", handle)
+    try:
+        return resolve_kagglehub_dataset(handle)
+    except ImportError as exc:
+        raise FileNotFoundError(
+            "Dataset not found locally and kagglehub is not installed. "
+            f"Install kagglehub or pass --data-dir. ({exc})",
+        ) from exc
+    except Exception as exc:
+        raise FileNotFoundError(
+            f"Dataset not found locally and kagglehub download failed for '{handle}': {exc}",
+        ) from exc
 
 
 def resolve_data_dir(config: Config) -> Path:
@@ -63,24 +98,20 @@ def resolve_data_dir(config: Config) -> Path:
 
 
 def ensure_dataset_available(config: Config) -> Path:
-    """Validate that the configured dataset path exists and contains 8 class folders."""
-    data_dir = resolve_data_dir(config)
-    if not data_dir.is_dir():
-        raise FileNotFoundError(
-            f"Dataset directory not found: {data_dir}\n"
-            f"Expected Kaggle mount at {DEFAULT_KAGGLE_DATA_DIR} "
-            f"or 8 class folders under {DEFAULT_KAGGLE_MOUNT_ROOT}.\n"
-            "Attach the dataset in Kaggle (Add Input) or pass --data-dir to override.",
-        )
+    """Resolve dataset path locally, or auto-download via kagglehub fallback."""
+    local = _local_dataset_root(config)
+    if local is not None:
+        config.dataset.data_dir = local
+        return local
 
-    resolved = resolve_imagefolder_root(data_dir)
-    if resolved is None:
+    resolved = _resolve_via_kagglehub(config)
+    if resolve_imagefolder_root(resolved) is None:
         raise FileNotFoundError(
-            f"No valid ImageFolder layout under {data_dir}. "
-            f"Expected 8 class subdirectories ({', '.join(EXPECTED_CLASS_NAMES[:3])}, ...) "
-            "each containing MRI images.",
+            f"kagglehub resolved to {resolved}, but no valid ImageFolder layout was found. "
+            f"Expected 8 class subdirectories ({', '.join(EXPECTED_CLASS_NAMES[:3])}, ...).",
         )
     config.dataset.data_dir = resolved
+    logger.info("Using dataset at %s", resolved)
     return resolved
 
 

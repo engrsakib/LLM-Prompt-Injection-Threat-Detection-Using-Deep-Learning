@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import torch
@@ -87,9 +88,23 @@ def test_ensure_dataset_available_updates_config(tmp_path: Path) -> None:
 
 
 def test_ensure_dataset_available_missing_raises(tmp_path: Path) -> None:
-    cfg = Config(dataset=DatasetConfig(data_dir=tmp_path / "missing"))
-    with pytest.raises(FileNotFoundError, match="Dataset directory not found"):
-        ensure_dataset_available(cfg)
+    cfg = Config(
+        dataset=DatasetConfig(
+            data_dir=tmp_path / "missing",
+            kagglehub_fallback_handle="owner/fake-dataset",
+        ),
+    )
+    hub_root = tmp_path / "hub" / "data"
+    _make_fake_dataset(hub_root, n_per_class=1)
+
+    with mock.patch(
+        "neuro_mri_xai.data.download.resolve_kagglehub_dataset",
+        return_value=hub_root,
+    ):
+        resolved = ensure_dataset_available(cfg)
+
+    assert resolved == hub_root.resolve()
+    assert cfg.dataset.data_dir == hub_root.resolve()
 
 
 def test_stratified_split_sizes() -> None:

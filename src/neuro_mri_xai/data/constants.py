@@ -29,3 +29,6 @@ DEFAULT_KAGGLE_MOUNT_ROOT: str = (
     "/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai"
 )
 DEFAULT_KAGGLE_DATA_DIR: str = f"{DEFAULT_KAGGLE_MOUNT_ROOT}/{DEFAULT_KAGGLE_DATA_SUBDIR}"
+
+# kagglehub auto-download when local/Kaggle mount paths are unavailable
+DEFAULT_KAGGLEHUB_FALLBACK_HANDLE: str = "alifatahi/multi-class-neurological-disorder-mcnd-dataset"

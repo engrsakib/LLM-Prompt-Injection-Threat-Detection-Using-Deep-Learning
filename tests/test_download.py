@@ -87,3 +87,15 @@ def test_download_dataset_use_kagglehub_flag(tmp_path: Path) -> None:
 
     mock_hub.assert_called_once_with("owner/primary-dataset")
     assert path == hub_root.resolve()
+
+
+def test_resolve_kagglehub_dataset_uses_cache(tmp_path: Path) -> None:
+    from neuro_mri_xai.data.download import resolve_kagglehub_dataset
+
+    cached = _make_imagefolder(tmp_path / "cached", ["A", "B"])
+    with mock.patch(
+        "neuro_mri_xai.data.download.find_kagglehub_cache",
+        return_value=cached,
+    ):
+        path = resolve_kagglehub_dataset("owner/test-dataset")
+    assert path == cached.resolve()
