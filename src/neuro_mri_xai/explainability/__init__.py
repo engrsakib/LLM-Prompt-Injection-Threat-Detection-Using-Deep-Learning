@@ -5,18 +5,9 @@
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 
-"""Feature extraction and explainability (XAI) modules."""
+"""Explainability modules: Grad-CAM, attention rollout, SAM overlay."""
 
-from neuro_mri_xai.explainability.attention_rollout import compute_attention_rollout
-from neuro_mri_xai.explainability.gradcam import GradCAM, display_gradcam
+from neuro_mri_xai.explainability.gradcam import compute_gradcam
 from neuro_mri_xai.explainability.pipeline import explain_sample
-from neuro_mri_xai.explainability.sam_overlay import create_sam_overlay, save_sam_overlay
 
-__all__ = [
-    "GradCAM",
-    "display_gradcam",
-    "compute_attention_rollout",
-    "create_sam_overlay",
-    "save_sam_overlay",
-    "explain_sample",
-]
+__all__ = ["compute_gradcam", "explain_sample"]

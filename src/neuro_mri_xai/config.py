@@ -1,3 +1,10 @@
+# Copyright (C) 2026 Md. Nazmus Sakib
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
 """Configuration loading and typed access."""
 
 from __future__ import annotations
@@ -30,10 +37,13 @@ class DatasetConfig:
 class ModelConfig:
     backbone: str = "swin_base_patch4_window7_224"
     num_classes: int = 8
+    pretrained: bool = True
+    drop_path_rate: float = 0.1
     use_lora: bool = True
     lora_r: int = 8
     lora_alpha: int = 16
     lora_target_modules: list[str] = field(default_factory=lambda: ["qkv", "proj"])
+    lora_modules_to_save: list[str] = field(default_factory=lambda: ["head"])
     lora_dropout: float = 0.1
 
 
@@ -62,6 +72,7 @@ class TrainingConfig:
     checkpoint_dir: Path = field(default_factory=lambda: Path("outputs/checkpoints"))
     log_dir: Path = field(default_factory=lambda: Path("outputs/logs"))
     use_amp: bool = True
+    use_cosine_scheduler: bool = True
 
 
 @dataclass
@@ -82,6 +93,14 @@ class ReportConfig:
 
 
 @dataclass
+class VramConfig:
+    max_batch_size: int = 16
+    sam_on_cpu: bool = False
+    sequential_models: bool = True
+    empty_cache_between: bool = True
+
+
+@dataclass
 class Config:
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
@@ -91,6 +110,7 @@ class Config:
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     explainability: ExplainabilityConfig = field(default_factory=ExplainabilityConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
+    vram: VramConfig = field(default_factory=VramConfig)
     classes: list[str] = field(default_factory=list)
     project_root: Path = field(default_factory=get_project_root)
 
@@ -122,6 +142,7 @@ def load_config(config_path: str | Path | None = None) -> Config:
     cfg.evaluation = _merge_dataclass(EvaluationConfig, raw.get("evaluation", {}))
     cfg.explainability = _merge_dataclass(ExplainabilityConfig, raw.get("explainability", {}))
     cfg.report = _merge_dataclass(ReportConfig, raw.get("report", {}))
+    cfg.vram = _merge_dataclass(VramConfig, raw.get("vram", {}))
     cfg.classes = raw.get("classes", cfg.classes)
 
     cfg.dataset.data_dir = get_data_root(raw)
@@ -135,5 +156,11 @@ def load_config(config_path: str | Path | None = None) -> Config:
         cfg.model.use_lora = os.environ["NEURO_MRI_USE_LORA"].lower() in ("1", "true", "yes")
     if os.environ.get("NEURO_MRI_SAM_ENABLED"):
         cfg.sam.enabled = os.environ["NEURO_MRI_SAM_ENABLED"].lower() in ("1", "true", "yes")
+    if os.environ.get("NEURO_MRI_SEQUENTIAL_VRAM"):
+        cfg.vram.sequential_models = os.environ["NEURO_MRI_SEQUENTIAL_VRAM"].lower() in (
+            "1",
+            "true",
+            "yes",
+        )
 
     return cfg

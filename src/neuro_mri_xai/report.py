@@ -22,6 +22,7 @@ from neuro_mri_xai.explainability.pipeline import explain_sample
 from neuro_mri_xai.models.florence_reporter import generate_diagnostic_text, unload_florence
 from neuro_mri_xai.models.sam_roi import unload_sam
 from neuro_mri_xai.utils.paths import ensure_dir
+from neuro_mri_xai.utils.vram import empty_cuda_cache, log_gpu_mem
 
 
 def _img_to_base64(path: str | Path) -> str:
@@ -74,6 +75,7 @@ def generate_report(
     image: str | Path,
     config_path: str = "configs/default.yaml",
     output_dir: str | Path | None = None,
+    skip_florence: bool = False,
 ) -> Path:
     config = load_config(config_path)
     output_dir = ensure_dir(output_dir or config.report.output_dir)
@@ -81,18 +83,24 @@ def generate_report(
     model, class_names = load_checkpoint_model(checkpoint, config)
     xai_dir = ensure_dir(output_dir / "xai_cache")
     xai = explain_sample(model, image_path, config, class_names, xai_dir)
+    log_gpu_mem("post-XAI")
+
     pil_image = Image.open(image_path).convert("RGB")
-    if config.florence.enabled:
+    use_florence = config.florence.enabled and not skip_florence
+    if use_florence:
         try:
             diagnostic_text = generate_diagnostic_text(
                 pil_image, xai["prediction"], xai["confidence"], config,
             )
         finally:
             unload_florence()
+            empty_cuda_cache()
+            log_gpu_mem("Florence unloaded")
     else:
         diagnostic_text = f"Predicted: {xai['prediction']} ({xai['confidence']:.1%})"
     if config.sam.enabled:
         unload_sam()
+        empty_cuda_cache()
     report_path = output_dir / f"report_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.html"
     report_path.write_text(build_html_report(
         image_path, xai["prediction"], xai["confidence"], diagnostic_text,
@@ -112,8 +120,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--image", required=True)
     parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--skip-florence", action="store_true")
     args = parser.parse_args(argv)
-    generate_report(args.checkpoint, args.image, args.config, args.output_dir)
+    generate_report(args.checkpoint, args.image, args.config, args.output_dir, args.skip_florence)
 
 
 if __name__ == "__main__":

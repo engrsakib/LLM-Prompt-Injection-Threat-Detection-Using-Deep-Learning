@@ -1,3 +1,10 @@
+# Copyright (C) 2026 Md. Nazmus Sakib
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
 """SAM-based brain ROI extraction and XAI overlay."""
 
 from __future__ import annotations
@@ -43,7 +50,11 @@ def _load_sam_predictor(config: Config) -> "SamPredictor":
             f"SAM checkpoint not found: {checkpoint}. Run scripts/download_weights.py"
         )
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if config.vram.sam_on_cpu:
+        device = "cpu"
+    else:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
     sam = sam_model_registry[config.sam.model_type](checkpoint=str(checkpoint))
     sam.to(device=device)
     _sam_predictor = SamPredictor(sam)
@@ -57,7 +68,8 @@ def unload_sam() -> None:
         torch.cuda.empty_cache()
 
 
-def extract_brain_mask(image_rgb: np.ndarray, config: Config) -> np.ndarray:
+def extract_brain_mask(image_rgb: np.ndarray, config: Config) -> tuple[np.ndarray, float]:
+    """Zero-shot brain ROI mask via SAM center-point prompt; Otsu bbox fallback."""
     h, w = image_rgb.shape[:2]
     try:
         predictor = _load_sam_predictor(config)
@@ -68,17 +80,19 @@ def extract_brain_mask(image_rgb: np.ndarray, config: Config) -> np.ndarray:
             point_labels=np.array([1]),
             multimask_output=True,
         )
-        return (masks[int(np.argmax(scores))].astype(np.uint8) * 255)
+        best_idx = int(np.argmax(scores))
+        confidence = float(scores[best_idx])
+        return masks[best_idx].astype(np.uint8) * 255, confidence
     except Exception:
         x1, y1, x2, y2 = _otsu_bbox(image_rgb)
         mask = np.zeros((h, w), dtype=np.uint8)
         mask[y1:y2, x1:x2] = 255
-        return mask
+        return mask, 0.0
 
 
 def crop_roi_pil(image: Image.Image, config: Config) -> Image.Image:
     arr = np.array(image.convert("RGB"))
-    mask = extract_brain_mask(arr, config)
+    mask, _ = extract_brain_mask(arr, config)
     coords = cv2.findNonZero(mask)
     if coords is None:
         return image
@@ -89,6 +103,7 @@ def crop_roi_pil(image: Image.Image, config: Config) -> Image.Image:
 def make_roi_fn(config: Config):
     def _roi(image: Image.Image) -> Image.Image:
         return crop_roi_pil(image, config)
+
     return _roi
 
 

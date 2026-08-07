@@ -7,9 +7,10 @@ import pytest
 import torch
 from PIL import Image
 
-from neuro_mri_xai.config import Config, ModelConfig, load_config
+from neuro_mri_xai.config import Config, load_config
 from neuro_mri_xai.models import build_model
 from neuro_mri_xai.models.lora import apply_lora, get_trainable_param_count
+from neuro_mri_xai.models.swin_classifier import get_swin_target_layers, unwrap_model
 from neuro_mri_xai.models.sam_roi import _otsu_bbox, overlay_heatmap_on_mask
 
 
@@ -53,3 +54,31 @@ def test_sam_overlay_shape():
     mask = np.ones((224, 224), dtype=np.uint8) * 255
     out = overlay_heatmap_on_mask(img, heatmap, mask)
     assert out.shape == img.shape
+
+
+def test_unwrap_model_and_target_layers(config: Config):
+    pytest.importorskip("timm")
+    model = build_model(config, pretrained=False)
+    backbone = unwrap_model(model)
+    assert hasattr(backbone, "layers")
+    gradcam_layer, attn_layer = get_swin_target_layers(model)
+    assert gradcam_layer is not None
+
+
+def test_explain_sample_return_keys(tmp_path, config: Config):
+    pytest.importorskip("timm")
+    from neuro_mri_xai.explainability.pipeline import explain_sample
+
+    class_dir = tmp_path / "Normal"
+    class_dir.mkdir(parents=True)
+    img_path = class_dir / "sample.jpg"
+    Image.new("RGB", (224, 224), color=(128, 64, 32)).save(img_path)
+
+    config.sam.enabled = False
+    model = build_model(config, pretrained=False)
+    class_names = ["Normal"]
+    result = explain_sample(model, img_path, config, class_names, tmp_path / "xai")
+    assert "prediction" in result
+    assert "confidence" in result
+    assert "gradcam_path" in result
+    assert "attention_path" in result

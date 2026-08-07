@@ -1,3 +1,10 @@
+# Copyright (C) 2026 Md. Nazmus Sakib
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
 """Florence-2 natural language captioning for MRI reports."""
 
 from __future__ import annotations
@@ -16,13 +23,15 @@ def _load_florence(config: Config):
     if _florence_model is not None:
         return _florence_model, _florence_processor
 
-    from transformers import AutoModelForCausalLM, AutoProcessor
+    from transformers import AutoProcessor, Florence2ForConditionalGeneration
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
     processor = AutoProcessor.from_pretrained(config.florence.model_id, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        config.florence.model_id, trust_remote_code=True, torch_dtype=dtype,
+    model = Florence2ForConditionalGeneration.from_pretrained(
+        config.florence.model_id,
+        trust_remote_code=True,
+        torch_dtype=dtype,
     ).to(device)
     model.eval()
     _florence_model, _florence_processor = model, processor
@@ -55,18 +64,36 @@ def generate_caption(image: Image.Image, config: Config, task: str = "<MORE_DETA
     return caption
 
 
+def generate_clinical_vqa(
+    image: Image.Image,
+    questions: list[str],
+    config: Config,
+) -> list[str]:
+    """Answer clinical VQA prompts using Florence-2."""
+    answers: list[str] = []
+    for question in questions:
+        task = f"<VQA>{question}"
+        answers.append(generate_caption(image, config, task=task))
+    return answers
+
+
 def generate_diagnostic_text(
     image: Image.Image,
     predicted_class: str,
     confidence: float,
     config: Config,
 ) -> str:
+    class_context = ""
+    if predicted_class in config.classes:
+        class_context = f" (class index {config.classes.index(predicted_class) + 1}/{len(config.classes)})"
+
     caption = generate_caption(image, config)
     disclaimer = (
         "DISCLAIMER: This AI-generated report is for research and interpretability "
         "purposes only. It is not a substitute for professional medical diagnosis."
     )
     return (
-        f"Predicted diagnosis: {predicted_class} (confidence: {confidence:.1%})\n\n"
+        f"Predicted diagnosis: {predicted_class}{class_context} "
+        f"(confidence: {confidence:.1%})\n\n"
         f"Visual description: {caption}\n\n{disclaimer}"
     )

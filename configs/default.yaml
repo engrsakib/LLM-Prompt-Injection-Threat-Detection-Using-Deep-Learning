@@ -12,10 +12,13 @@ dataset:
 model:
   backbone: "swin_base_patch4_window7_224"
   num_classes: 8
+  pretrained: true
+  drop_path_rate: 0.1
   use_lora: true
   lora_r: 8
   lora_alpha: 16
   lora_target_modules: ["qkv", "proj"]
+  lora_modules_to_save: ["head"]
   lora_dropout: 0.1
 
 sam:
@@ -38,6 +41,13 @@ training:
   checkpoint_dir: "outputs/checkpoints"
   log_dir: "outputs/logs"
   use_amp: true
+  use_cosine_scheduler: true
+
+vram:
+  max_batch_size: 16
+  sam_on_cpu: false
+  sequential_models: true
+  empty_cache_between: true
 
 evaluation:
   figures_dir: "outputs/figures"

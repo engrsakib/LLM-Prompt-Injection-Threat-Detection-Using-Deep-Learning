@@ -5,8 +5,8 @@
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 
-"""Model training pipeline."""
+"""Training pipeline modules."""
 
-from neuro_mri_xai.training.trainer import Trainer, TrainerState
+from neuro_mri_xai.training.trainer import Trainer
 
-__all__ = ["Trainer", "TrainerState"]
+__all__ = ["Trainer"]

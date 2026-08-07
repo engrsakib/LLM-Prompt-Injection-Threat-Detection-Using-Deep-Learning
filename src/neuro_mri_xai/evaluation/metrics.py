@@ -126,7 +126,15 @@ def extract_embeddings(
     device: torch.device,
 ) -> tuple[np.ndarray, np.ndarray]:
     model.eval()
-    inner = getattr(model, "base_model", model)
+    inner = model
+    for _ in range(3):
+        if hasattr(inner, "base_model"):
+            inner = inner.base_model
+        elif hasattr(inner, "model") and isinstance(inner.model, torch.nn.Module):
+            inner = inner.model
+        else:
+            break
+
     if hasattr(inner, "head"):
         inner.head = torch.nn.Identity()
     features: list[np.ndarray] = []
