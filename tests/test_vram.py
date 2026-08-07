@@ -9,8 +9,8 @@
 
 from __future__ import annotations
 
-from neuro_mri_xai.models.sam_roi import unload_sam
 from neuro_mri_xai.models.florence_reporter import unload_florence
+from neuro_mri_xai.models.sam_roi import unload_sam
 from neuro_mri_xai.utils.vram import empty_cuda_cache, gpu_mem_gb
 
 

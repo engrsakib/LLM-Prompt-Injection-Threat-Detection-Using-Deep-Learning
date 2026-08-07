@@ -95,12 +95,18 @@ def stratified_split_indices(
     """Split indices into train/val/test with stratification (default 80/10/10)."""
     indices = list(range(len(labels)))
     train_val_idx, test_idx = train_test_split(
-        indices, test_size=test_split, stratify=labels, random_state=seed,
+        indices,
+        test_size=test_split,
+        stratify=labels,
+        random_state=seed,
     )
     val_ratio = val_split / (1.0 - test_split)
     train_labels = [labels[i] for i in train_val_idx]
     train_idx, val_idx = train_test_split(
-        train_val_idx, test_size=val_ratio, stratify=train_labels, random_state=seed,
+        train_val_idx,
+        test_size=val_ratio,
+        stratify=train_labels,
+        random_state=seed,
     )
     return train_idx, val_idx, test_idx
 

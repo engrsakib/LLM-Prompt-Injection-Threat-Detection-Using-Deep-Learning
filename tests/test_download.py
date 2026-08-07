@@ -12,7 +12,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest import mock
 
-import pytest
 from PIL import Image
 
 from neuro_mri_xai.config import Config, DatasetConfig

@@ -10,8 +10,8 @@ from PIL import Image
 from neuro_mri_xai.config import Config, load_config
 from neuro_mri_xai.models import build_model
 from neuro_mri_xai.models.lora import apply_lora, get_trainable_param_count
-from neuro_mri_xai.models.swin_classifier import get_swin_target_layers, unwrap_model
 from neuro_mri_xai.models.sam_roi import _otsu_bbox, overlay_heatmap_on_mask
+from neuro_mri_xai.models.swin_classifier import get_swin_target_layers, unwrap_model
 
 
 @pytest.fixture

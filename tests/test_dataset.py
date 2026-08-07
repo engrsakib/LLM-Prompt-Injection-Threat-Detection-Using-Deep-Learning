@@ -49,4 +49,7 @@ def test_stratified_split_16400() -> None:
 
 
 def test_get_transforms_train_vs_eval() -> None:
-    assert len(get_transforms(224, train=True).transforms) == len(get_transforms(224, train=False).transforms) + 2
+    assert (
+        len(get_transforms(224, train=True).transforms)
+        == len(get_transforms(224, train=False).transforms) + 2
+    )

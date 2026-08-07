@@ -10,8 +10,8 @@
 from __future__ import annotations
 
 import gc
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Callable, Iterator
 
 import torch
 

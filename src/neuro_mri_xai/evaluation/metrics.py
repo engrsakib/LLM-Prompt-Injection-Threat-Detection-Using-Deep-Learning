@@ -66,7 +66,10 @@ def compute_metrics(
         "recall_macro": float(recall_score(y_true, y_pred, average="macro", zero_division=0)),
         "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
         "classification_report": classification_report(
-            y_true, y_pred, target_names=class_names, zero_division=0,
+            y_true,
+            y_pred,
+            target_names=class_names,
+            zero_division=0,
         ),
     }
     try:
@@ -150,7 +153,11 @@ def extract_embeddings(
 
 def run_sklearn_baselines(X: np.ndarray, y: np.ndarray, seed: int = 42) -> dict[str, float]:
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, stratify=y, random_state=seed,
+        X,
+        y,
+        test_size=0.2,
+        stratify=y,
+        random_state=seed,
     )
     models = {
         "knn": KNeighborsClassifier(),

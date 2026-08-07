@@ -21,7 +21,7 @@ from neuro_mri_xai.config import Config
 if TYPE_CHECKING:
     from segment_anything import SamPredictor
 
-_sam_predictor: "SamPredictor | None" = None
+_sam_predictor: SamPredictor | None = None
 
 
 def _otsu_bbox(image_rgb: np.ndarray, padding: float = 0.05) -> tuple[int, int, int, int]:
@@ -37,7 +37,7 @@ def _otsu_bbox(image_rgb: np.ndarray, padding: float = 0.05) -> tuple[int, int, 
     return max(0, x - pad_x), max(0, y - pad_y), min(w, x + bw + pad_x), min(h, y + bh + pad_y)
 
 
-def _load_sam_predictor(config: Config) -> "SamPredictor":
+def _load_sam_predictor(config: Config) -> SamPredictor:
     global _sam_predictor
     if _sam_predictor is not None:
         return _sam_predictor

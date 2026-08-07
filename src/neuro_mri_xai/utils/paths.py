@@ -68,9 +68,7 @@ def get_project_root() -> Path:
 def _has_imagefolder_layout(path: Path) -> bool:
     if not path.is_dir():
         return False
-    class_dirs = [
-        d for d in path.iterdir() if d.is_dir() and not d.name.startswith(".")
-    ]
+    class_dirs = [d for d in path.iterdir() if d.is_dir() and not d.name.startswith(".")]
     if not class_dirs:
         return False
     return any(
@@ -120,10 +118,50 @@ def find_kagglehub_cache(handle: str) -> Path | None:
     return None
 
 
+def _discover_kaggle_input_root() -> Path | None:
+    """Scan mounted Kaggle input datasets for an ImageFolder layout."""
+    kaggle_input = Path("/kaggle/input")
+    if not kaggle_input.is_dir():
+        return None
+
+    for dataset_dir in sorted(kaggle_input.iterdir()):
+        if not dataset_dir.is_dir():
+            continue
+        resolved = resolve_imagefolder_root(dataset_dir)
+        if resolved is not None:
+            return resolved.resolve()
+
+    return None
+
+
+def _discover_colab_data_root(project_root: Path) -> Path:
+    """Resolve Colab dataset path from project data/ or /content subdirectories."""
+    candidates: list[Path] = [project_root / "data"]
+
+    content_root = Path("/content")
+    if content_root.is_dir():
+        for child in content_root.iterdir():
+            if child.is_dir() and child.name not in {"sample_data", ".config"}:
+                candidates.append(child)
+
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        resolved = resolve_imagefolder_root(candidate)
+        if resolved is not None:
+            return resolved.resolve()
+        if candidate.is_dir() and any(candidate.iterdir()):
+            return candidate.resolve()
+
+    return (project_root / "data").resolve()
+
+
 def get_data_root(config: dict | None = None) -> Path:
     env_data = os.environ.get("NEURO_MRI_DATA_DIR")
     if env_data:
-        return Path(env_data).resolve()
+        path = Path(env_data).expanduser().resolve()
+        resolved = resolve_imagefolder_root(path)
+        return resolved if resolved is not None else path
 
     if config:
         dataset_cfg = config.get("dataset", {})
@@ -142,32 +180,24 @@ def get_data_root(config: dict | None = None) -> Path:
         if source == "gdrive":
             gdrive_path = config["dataset"].get("gdrive_path")
             if gdrive_path and Path(gdrive_path).exists():
-                return Path(gdrive_path).resolve()
+                gdrive = Path(gdrive_path).resolve()
+                resolved = resolve_imagefolder_root(gdrive)
+                return resolved if resolved is not None else gdrive
 
     if runtime == RuntimeEnv.KAGGLE:
-        kaggle_input = Path("/kaggle/input")
-        if kaggle_input.exists():
-            for path in kaggle_input.rglob("data"):
-                if path.is_dir() and any(path.iterdir()):
-                    return path.resolve()
-            for path in kaggle_input.iterdir():
-                if path.is_dir():
-                    data_sub = path / "data"
-                    if data_sub.is_dir():
-                        return data_sub.resolve()
-                    return path.resolve()
+        kaggle_root = _discover_kaggle_input_root()
+        if kaggle_root is not None:
+            return kaggle_root
 
     default_data = project_root / "data"
     if runtime == RuntimeEnv.COLAB:
-        colab_data = Path("/content/data")
-        if colab_data.exists() and any(colab_data.iterdir()):
-            return colab_data.resolve()
-        return colab_data
+        return _discover_colab_data_root(project_root)
 
     if default_data.exists():
-        return default_data.resolve()
+        resolved = resolve_imagefolder_root(default_data)
+        return resolved if resolved is not None else default_data.resolve()
 
-    return default_data
+    return default_data.resolve()
 
 
 def resolve_path(relative: str | Path, base: Path | None = None) -> Path:

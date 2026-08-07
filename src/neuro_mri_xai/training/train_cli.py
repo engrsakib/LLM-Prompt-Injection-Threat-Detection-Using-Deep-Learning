@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import argparse
 
+import torch
+
 from neuro_mri_xai.config import load_config
 from neuro_mri_xai.data import get_dataloaders
 from neuro_mri_xai.models import build_model
 from neuro_mri_xai.training.trainer import Trainer
+from neuro_mri_xai.utils.cli import add_data_dir_argument
 from neuro_mri_xai.utils.seed import set_seed
 
 
@@ -22,8 +25,9 @@ def run_training(
     config_path: str = "configs/default.yaml",
     resume: str | None = None,
     epochs: int | None = None,
+    data_dir: str | None = None,
 ) -> str:
-    config = load_config(config_path)
+    config = load_config(config_path, data_dir=data_dir)
     set_seed(config.dataset.seed)
 
     # SAM ROI is expensive during training; disable unless explicitly enabled via env.
@@ -44,6 +48,7 @@ def run_training(
         resume_path=resume,
     )
     print(f"Best checkpoint: {ckpt_path} (val_acc={trainer.best_val_acc:.4f})")
+    print(f"Data dir: {config.dataset.data_dir}")
     return str(ckpt_path)
 
 
@@ -52,8 +57,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--config", default="configs/default.yaml")
     parser.add_argument("--resume", default=None, help="Resume from checkpoint path")
     parser.add_argument("--epochs", type=int, default=None, help="Override epoch count")
+    add_data_dir_argument(parser)
     args = parser.parse_args(argv)
-    run_training(args.config, resume=args.resume, epochs=args.epochs)
+    run_training(args.config, resume=args.resume, epochs=args.epochs, data_dir=args.data_dir)
 
 
 if __name__ == "__main__":

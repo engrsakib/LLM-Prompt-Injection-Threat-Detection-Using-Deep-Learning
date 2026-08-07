@@ -125,7 +125,10 @@ def _merge_dataclass(cls, data: dict[str, Any]):
     return cls(**filtered)
 
 
-def load_config(config_path: str | Path | None = None) -> Config:
+def load_config(
+    config_path: str | Path | None = None,
+    data_dir: str | Path | None = None,
+) -> Config:
     project_root = get_project_root()
     if config_path is None:
         config_path = project_root / "configs" / "default.yaml"
@@ -147,6 +150,10 @@ def load_config(config_path: str | Path | None = None) -> Config:
     cfg.classes = raw.get("classes", cfg.classes)
 
     cfg.dataset.data_dir = get_data_root(raw)
+    if data_dir:
+        from neuro_mri_xai.utils.cli import apply_data_dir_override
+
+        apply_data_dir_override(cfg, data_dir)
     cfg.training.checkpoint_dir = resolve_path(cfg.training.checkpoint_dir, project_root)
     cfg.training.log_dir = resolve_path(cfg.training.log_dir, project_root)
     cfg.evaluation.figures_dir = resolve_path(cfg.evaluation.figures_dir, project_root)

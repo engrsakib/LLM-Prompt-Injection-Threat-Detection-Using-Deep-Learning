@@ -21,6 +21,7 @@ from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
 from neuro_mri_xai.explainability.pipeline import explain_sample
 from neuro_mri_xai.models.florence_reporter import generate_diagnostic_text, unload_florence
 from neuro_mri_xai.models.sam_roi import unload_sam
+from neuro_mri_xai.utils.cli import add_data_dir_argument
 from neuro_mri_xai.utils.paths import ensure_dir
 from neuro_mri_xai.utils.vram import empty_cuda_cache, log_gpu_mem
 
@@ -76,8 +77,9 @@ def generate_report(
     config_path: str = "configs/default.yaml",
     output_dir: str | Path | None = None,
     skip_florence: bool = False,
+    data_dir: str | None = None,
 ) -> Path:
-    config = load_config(config_path)
+    config = load_config(config_path, data_dir=data_dir)
     output_dir = ensure_dir(output_dir or config.report.output_dir)
     image_path = Path(image)
     model, class_names = load_checkpoint_model(checkpoint, config)
@@ -90,7 +92,10 @@ def generate_report(
     if use_florence:
         try:
             diagnostic_text = generate_diagnostic_text(
-                pil_image, xai["prediction"], xai["confidence"], config,
+                pil_image,
+                xai["prediction"],
+                xai["confidence"],
+                config,
             )
         finally:
             unload_florence()
@@ -102,14 +107,20 @@ def generate_report(
         unload_sam()
         empty_cuda_cache()
     report_path = output_dir / f"report_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.html"
-    report_path.write_text(build_html_report(
-        image_path, xai["prediction"], xai["confidence"], diagnostic_text,
-        {
-            "gradcam": xai.get("gradcam_path"),
-            "attention_saliency": xai.get("attention_path"),
-            "sam_constrained_overlay": xai.get("sam_overlay_path"),
-        },
-    ), encoding="utf-8")
+    report_path.write_text(
+        build_html_report(
+            image_path,
+            xai["prediction"],
+            xai["confidence"],
+            diagnostic_text,
+            {
+                "gradcam": xai.get("gradcam_path"),
+                "attention_saliency": xai.get("attention_path"),
+                "sam_constrained_overlay": xai.get("sam_overlay_path"),
+            },
+        ),
+        encoding="utf-8",
+    )
     print(f"Report saved to {report_path}")
     return report_path
 
@@ -121,8 +132,16 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--image", required=True)
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--skip-florence", action="store_true")
+    add_data_dir_argument(parser)
     args = parser.parse_args(argv)
-    generate_report(args.checkpoint, args.image, args.config, args.output_dir, args.skip_florence)
+    generate_report(
+        args.checkpoint,
+        args.image,
+        args.config,
+        args.output_dir,
+        args.skip_florence,
+        data_dir=args.data_dir,
+    )
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from pathlib import Path
 
 from neuro_mri_xai.config import Config
 from neuro_mri_xai.utils.paths import (
+    RuntimeEnv,
     detect_runtime_env,
     ensure_dir,
     find_kagglehub_cache,
@@ -106,10 +107,11 @@ def setup_gdrive(gdrive_path: str, dest: Path) -> Path:
 
 
 def default_download_dest() -> Path:
+    project_root = get_project_root()
     runtime = detect_runtime_env()
-    if runtime.value == "colab":
-        return Path("/content/data")
-    return get_project_root() / "data"
+    if runtime == RuntimeEnv.COLAB:
+        return project_root / "data"
+    return project_root / "data"
 
 
 def _fallback_source(configured_source: str) -> str:
@@ -167,6 +169,5 @@ def download_dataset(
         return resolved
 
     raise ValueError(
-        f"Unsupported dataset source '{configured_source}'. "
-        "Use kagglehub, kaggle, or gdrive.",
+        f"Unsupported dataset source '{configured_source}'. Use kagglehub, kaggle, or gdrive.",
     )

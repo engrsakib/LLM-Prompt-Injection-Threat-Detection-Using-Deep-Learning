@@ -24,7 +24,7 @@ def unwrap_model(model: nn.Module) -> nn.Module:
         if hasattr(current, "base_model"):
             current = current.base_model  # type: ignore[assignment]
             continue
-        if hasattr(current, "model") and isinstance(getattr(current, "model"), nn.Module):
+        if hasattr(current, "model") and isinstance(current.model, nn.Module):
             inner = current.model
             if inner is not current:
                 current = inner

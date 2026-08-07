@@ -7,7 +7,12 @@
 
 """Data engineering: datasets, splits, and augmentation pipelines."""
 
-from neuro_mri_xai.data.dataset import MRIDataset, get_dataloaders, resolve_data_dir, stratified_split_indices
+from neuro_mri_xai.data.dataset import (
+    MRIDataset,
+    get_dataloaders,
+    resolve_data_dir,
+    stratified_split_indices,
+)
 from neuro_mri_xai.data.transforms import (
     get_test_transforms,
     get_train_transforms,

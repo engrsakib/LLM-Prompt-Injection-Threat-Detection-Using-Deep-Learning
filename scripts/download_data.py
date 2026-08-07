@@ -51,7 +51,9 @@ def main() -> None:
     )
 
     print(f"Dataset ready at: {data_path}")
-    classes = sorted(d.name for d in data_path.iterdir() if d.is_dir() and not d.name.startswith("."))
+    classes = sorted(
+        d.name for d in data_path.iterdir() if d.is_dir() and not d.name.startswith(".")
+    )
     print(f"Classes ({len(classes)}): {classes}")
 
 

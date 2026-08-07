@@ -1,7 +1,7 @@
 dataset:
   source: "kagglehub"
   kagglehub_handle: "alifatahi/multi-class-neurological-disorder-mcnd-dataset"
-  kaggle_dataset: "engrsakib02/neurological-disorders-mri-dataset-for-xai"
+  kaggle_dataset: "alifatahi/multi-class-neurological-disorder-mcnd-dataset"
   gdrive_path: "/content/drive/MyDrive/neuro-mri-data/data"
   val_split: 0.1
   test_split: 0.1

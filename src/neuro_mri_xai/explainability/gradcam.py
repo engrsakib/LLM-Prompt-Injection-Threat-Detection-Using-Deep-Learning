@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from neuro_mri_xai.models.swin_classifier import get_swin_target_layers, unwrap_model
+from neuro_mri_xai.models.swin_classifier import get_swin_target_layers
 
 
 class _GradCAMHook:
@@ -37,7 +37,6 @@ def compute_gradcam(
 ) -> np.ndarray:
     """Compute Grad-CAM heatmap for a single preprocessed image tensor (1,C,H,W)."""
     model.eval()
-    backbone = unwrap_model(model)
     layer = target_layer
     if layer is None:
         layer, _ = get_swin_target_layers(model)

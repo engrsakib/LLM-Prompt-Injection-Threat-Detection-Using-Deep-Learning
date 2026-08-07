@@ -10,6 +10,8 @@
 
 PyTorch pipeline for classifying neurological MRI scans with **Swin Transformer**, **LoRA** fine-tuning, **SAM** brain ROI extraction, and **Florence-2** natural-language reporting.
 
+Repository: [github.com/engrsakib/Neurological-MRI-XAI-Pipeline](https://github.com/engrsakib/Neurological-MRI-XAI-Pipeline)
+
 Refactored from the legacy Kaggle notebook ([`legacy/notebook8010ef336b.ipynb`](legacy/notebook8010ef336b.ipynb)) into a modular, pip-installable package.
 
 ---
@@ -88,7 +90,9 @@ flowchart LR
 
 ## Dataset
 
-[Kaggle: neurological-disorders-mri-dataset-for-xai](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai)
+**Primary:** [Multi-Class Neurological Disorder (MCND) Dataset](https://www.kaggle.com/datasets/alifatahi/multi-class-neurological-disorder-mcnd-dataset)
+
+Downloaded via **kagglehub** (primary) with automatic fallback to the Kaggle CLI or mounted notebook input paths.
 
 | Class | Description |
 |-------|-------------|
@@ -97,7 +101,7 @@ flowchart LR
 | `MS` | Multiple sclerosis |
 | `Normal` | Healthy control |
 
-~16,400 images · stratified **80/10/10** train/val/test split (no data leakage).
+Stratified **80/10/10** train/val/test split (no data leakage).
 
 ---
 
@@ -109,7 +113,7 @@ model/
 ├── configs/
 │   └── default.yaml                   # Hyperparameters, model toggles, VRAM settings
 ├── scripts/
-│   ├── download_data.py               # Kaggle API or Google Drive dataset fetch
+│   ├── download_data.py               # kagglehub / Kaggle CLI / Google Drive fetch
 │   ├── download_weights.py            # SAM checkpoint download
 │   ├── ci_check_license.py            # CI license header checker
 │   └── ci_select_tests.py             # CI test selector
@@ -120,6 +124,7 @@ model/
 │   ├── data/
 │   │   ├── __init__.py
 │   │   ├── dataset.py                 # ImageFolder wrapper + stratified 80/10/10 splits
+│   │   ├── download.py                # kagglehub download with legacy fallbacks
 │   │   └── transforms.py              # Train / val / test augmentation pipelines
 │   ├── models/
 │   │   ├── __init__.py                # build_model() factory
@@ -146,6 +151,7 @@ model/
 │   └── utils/
 │       ├── __init__.py
 │       ├── paths.py                   # Colab / Kaggle / local path resolution
+│       ├── cli.py                     # Shared --data-dir CLI helper
 │       ├── vram.py                    # Sequential GPU memory lifecycle
 │       ├── seed.py                    # Reproducibility helpers
 │       └── plotting.py                # Training curves, confusion matrices
@@ -157,96 +163,6 @@ model/
     ├── logs/
     └── reports/
 ```
-
----
-
-## Kaggle Execution Guide
-
-Run the steps below in a **Kaggle Notebook** with **GPU accelerator (T4, 16 GB VRAM)** enabled. Add the [neurological-disorders-mri-dataset-for-xai](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai) dataset as an input before starting.
-
-### Step 1 — Clone repository and set paths
-
-```bash
-cd /kaggle/working
-git clone https://github.com/YOUR_USERNAME/neuro-mri-xai.git
-cd neuro-mri-xai
-
-export NEURO_MRI_PROJECT_ROOT=/kaggle/working/neuro-mri-xai
-export NEURO_MRI_DATA_DIR=/kaggle/input/neurological-disorders-mri-dataset-for-xai/data
-export NEURO_MRI_SAM_ENABLED=false
-export NEURO_MRI_SEQUENTIAL_VRAM=true
-```
-
-> **VRAM tip:** Keep `NEURO_MRI_SAM_ENABLED=false` during training. Re-enable SAM for XAI and report steps (Steps 5–6).
-
-### Step 2 — Install dependencies (editable mode)
-
-```bash
-pip install -r requirements.txt
-pip install -e .
-pip install git+https://github.com/facebookresearch/segment-anything.git
-```
-
-### Step 3 — Download SAM weights
-
-```bash
-python scripts/download_weights.py --config configs/default.yaml
-```
-
-### Step 4 — Train Swin + LoRA
-
-```bash
-python -m neuro_mri_xai.training.train_cli --config configs/default.yaml
-```
-
-Checkpoint saved to `outputs/checkpoints/best_swin.pt`. Training curves are written to `outputs/logs/training_curves.png`.
-
-### Step 5 — Evaluate on held-out test set
-
-```bash
-python -m neuro_mri_xai.evaluation.test_eval \
-  --config configs/default.yaml \
-  --checkpoint outputs/checkpoints/best_swin.pt
-```
-
-Outputs: `outputs/figures/confusion_matrix.png`, `roc_curves.png`, `metrics.json`, `classification_report.txt`.
-
-### Step 6 — Generate XAI visualizations (single image)
-
-```bash
-export NEURO_MRI_SAM_ENABLED=true
-
-python -m neuro_mri_xai.explainability.xai_cli \
-  --config configs/default.yaml \
-  --checkpoint outputs/checkpoints/best_swin.pt \
-  --image /kaggle/input/neurological-disorders-mri-dataset-for-xai/data/Normal/sample.jpg \
-  --output-dir outputs/figures
-```
-
-Produces Grad-CAM, attention saliency, and SAM-constrained overlay PNGs.
-
-### Step 7 — Generate full HTML diagnostic report
-
-```bash
-export NEURO_MRI_SAM_ENABLED=true
-
-python -m neuro_mri_xai.report \
-  --config configs/default.yaml \
-  --checkpoint outputs/checkpoints/best_swin.pt \
-  --image /kaggle/input/neurological-disorders-mri-dataset-for-xai/data/Normal/sample.jpg
-```
-
-Report saved to `outputs/reports/report_YYYYMMDD_HHMMSS.html`. Pass `--skip-florence` to skip Florence-2 caption generation and reduce VRAM usage.
-
-### Step 8 — Save outputs (optional)
-
-Kaggle notebooks persist files under `/kaggle/working/`. Download or commit `outputs/checkpoints/`, `outputs/figures/`, and `outputs/reports/` before the session ends.
-
----
-
-## Quick Start (Google Colab)
-
-Open [`Colab_Runner.ipynb`](Colab_Runner.ipynb) — it orchestrates the same CLI steps automatically. Set your GitHub repo URL in cell 2 before running.
 
 ---
 
@@ -266,14 +182,208 @@ Edit [`configs/default.yaml`](configs/default.yaml) or set environment variables
 
 | Variable | Purpose |
 |----------|---------|
-| `NEURO_MRI_DATA_DIR` | Override dataset path |
+| `NEURO_MRI_DATA_DIR` | Override dataset path (ImageFolder root) |
 | `NEURO_MRI_PROJECT_ROOT` | Override project root |
 | `NEURO_MRI_USE_LORA` | Enable/disable LoRA (`true`/`false`) |
 | `NEURO_MRI_SAM_ENABLED` | Enable/disable SAM ROI (`true`/`false`) |
 | `NEURO_MRI_SEQUENTIAL_VRAM` | Enable sequential model load/unload (`true`/`false`) |
+
+All CLIs also accept **`--data-dir /path/to/dataset`**, which overrides config and environment variables for that run.
 
 ---
 
 ## License
 
 Copyright (C) 2026 Md. Nazmus Sakib — [GNU GPL v3.0](LICENSE)
+
+---
+
+## Execution Guide — Kaggle Notebooks
+
+Use a **GPU accelerator (T4, 16 GB VRAM)**. Attach the MCND dataset before running:
+
+**Dataset to add:** [alifatahi/multi-class-neurological-disorder-mcnd-dataset](https://www.kaggle.com/datasets/alifatahi/multi-class-neurological-disorder-mcnd-dataset)
+
+In the Kaggle notebook sidebar: **Add Input → search `multi-class-neurological-disorder-mcnd-dataset` → Add**.
+
+### Cell 1 — Clone repository
+
+```python
+!cd /kaggle/working && git clone https://github.com/engrsakib/Neurological-MRI-XAI-Pipeline.git
+%cd /kaggle/working/Neurological-MRI-XAI-Pipeline
+```
+
+### Cell 2 — Install dependencies (editable mode)
+
+```python
+!pip install -q -r requirements.txt
+!pip install -q -e .
+!pip install -q git+https://github.com/facebookresearch/segment-anything.git
+```
+
+### Cell 3 — Locate attached dataset path
+
+```python
+import os
+from pathlib import Path
+
+# Confirm the mounted input folder name (may vary slightly by Kaggle version)
+print("Kaggle inputs:", os.listdir("/kaggle/input"))
+
+DATA_DIR = "/kaggle/input/multi-class-neurological-disorder-mcnd-dataset"
+
+os.environ["NEURO_MRI_PROJECT_ROOT"] = "/kaggle/working/Neurological-MRI-XAI-Pipeline"
+os.environ["NEURO_MRI_SAM_ENABLED"] = "false"
+os.environ["NEURO_MRI_SEQUENTIAL_VRAM"] = "true"
+```
+
+> **VRAM tip:** Keep SAM disabled during training. Re-enable for XAI/report cells below.
+
+### Cell 4 — Download SAM weights
+
+```python
+!python scripts/download_weights.py --config configs/default.yaml
+```
+
+### Cell 5 — Train Swin + LoRA
+
+```python
+!python -m neuro_mri_xai.training.train_cli --config configs/default.yaml --data-dir {DATA_DIR}
+```
+
+Checkpoint: `outputs/checkpoints/best_swin.pt` · Curves: `outputs/logs/training_curves.png`
+
+### Cell 6 — Evaluate on held-out test set
+
+```python
+!python -m neuro_mri_xai.evaluation.test_eval --config configs/default.yaml --checkpoint outputs/checkpoints/best_swin.pt --data-dir {DATA_DIR}
+```
+
+Outputs: `outputs/figures/confusion_matrix.png`, `roc_curves.png`, `metrics.json`
+
+### Cell 7 — XAI visualizations (single image)
+
+```python
+import os
+from pathlib import Path
+
+os.environ["NEURO_MRI_SAM_ENABLED"] = "true"
+SAMPLE = next(Path(DATA_DIR).rglob("*.jpg"))
+
+!python -m neuro_mri_xai.explainability.xai_cli --config configs/default.yaml --checkpoint outputs/checkpoints/best_swin.pt --image {SAMPLE} --data-dir {DATA_DIR} --output-dir outputs/figures
+```
+
+### Cell 8 — Full HTML diagnostic report
+
+```python
+!python -m neuro_mri_xai.report --config configs/default.yaml --checkpoint outputs/checkpoints/best_swin.pt --image {SAMPLE} --data-dir {DATA_DIR}
+```
+
+Pass `--skip-florence` to reduce VRAM usage. Report saved under `outputs/reports/`.
+
+### Cell 9 — Persist outputs (optional)
+
+Kaggle persists files under `/kaggle/working/`. Download `outputs/checkpoints/`, `outputs/figures/`, and `outputs/reports/` before the session ends.
+
+---
+
+## Execution Guide — Google Colab
+
+Open [`Colab_Runner.ipynb`](Colab_Runner.ipynb) or run the cells below manually.
+
+### Cell 1 — Clone and install
+
+```python
+!git clone https://github.com/engrsakib/Neurological-MRI-XAI-Pipeline.git /content/Neurological-MRI-XAI-Pipeline
+%cd /content/Neurological-MRI-XAI-Pipeline
+
+!pip install -q -r requirements.txt
+!pip install -q -e .
+!pip install -q git+https://github.com/facebookresearch/segment-anything.git
+```
+
+### Cell 2 — Download dataset (kagglehub primary)
+
+**Option A — kagglehub (recommended, matches `configs/default.yaml`):**
+
+```python
+import os
+os.environ["NEURO_MRI_PROJECT_ROOT"] = "/content/Neurological-MRI-XAI-Pipeline"
+os.environ["NEURO_MRI_SAM_ENABLED"] = "false"
+os.environ["NEURO_MRI_SEQUENTIAL_VRAM"] = "true"
+
+!python scripts/download_data.py --config configs/default.yaml --source kagglehub
+```
+
+**Option B — Kaggle CLI API (fallback):**
+
+```python
+# Upload kaggle.json to Colab or set KAGGLE_USERNAME / KAGGLE_KEY in Colab Secrets
+!mkdir -p ~/.kaggle && cp kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json
+!python scripts/download_data.py --config configs/default.yaml --source kaggle
+```
+
+**Option C — Google Drive:**
+
+Upload the dataset to Drive, then:
+
+```python
+!python scripts/download_data.py --config configs/default.yaml --source gdrive
+```
+
+After download, resolve the data path:
+
+```python
+from neuro_mri_xai.config import load_config
+cfg = load_config("configs/default.yaml")
+DATA_DIR = str(cfg.dataset.data_dir)
+print("Data dir:", DATA_DIR)
+```
+
+### Cell 3 — Download SAM weights
+
+```python
+!python scripts/download_weights.py --config configs/default.yaml
+```
+
+### Cell 4 — Train
+
+```python
+!python -m neuro_mri_xai.training.train_cli --config configs/default.yaml --data-dir {DATA_DIR}
+```
+
+### Cell 5 — Evaluate
+
+```python
+!python -m neuro_mri_xai.evaluation.test_eval --config configs/default.yaml --checkpoint outputs/checkpoints/best_swin.pt --data-dir {DATA_DIR}
+```
+
+### Cell 6 — XAI + report
+
+```python
+import os
+from pathlib import Path
+
+os.environ["NEURO_MRI_SAM_ENABLED"] = "true"
+sample = next(Path(DATA_DIR).rglob("*.jpg"))
+
+!python -m neuro_mri_xai.explainability.xai_cli --config configs/default.yaml --checkpoint outputs/checkpoints/best_swin.pt --image {sample} --data-dir {DATA_DIR}
+
+!python -m neuro_mri_xai.report --config configs/default.yaml --checkpoint outputs/checkpoints/best_swin.pt --image {sample} --data-dir {DATA_DIR}
+```
+
+### Cell 7 — Save to Google Drive (optional)
+
+```python
+from google.colab import drive
+import shutil
+from pathlib import Path
+
+drive.mount("/content/drive")
+dest = Path("/content/drive/MyDrive/neuro-mri-xai-outputs")
+for folder in ["checkpoints", "figures", "reports", "logs"]:
+    src = Path("outputs") / folder
+    if src.exists():
+        shutil.copytree(src, dest / folder, dirs_exist_ok=True)
+        print(f"Copied {src}")
+```

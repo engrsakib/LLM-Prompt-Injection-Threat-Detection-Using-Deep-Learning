@@ -45,7 +45,9 @@ def unload_florence() -> None:
         torch.cuda.empty_cache()
 
 
-def generate_caption(image: Image.Image, config: Config, task: str = "<MORE_DETAILED_CAPTION>") -> str:
+def generate_caption(
+    image: Image.Image, config: Config, task: str = "<MORE_DETAILED_CAPTION>"
+) -> str:
     model, processor = _load_florence(config)
     device = next(model.parameters()).device
     if image.mode != "RGB":
@@ -85,7 +87,9 @@ def generate_diagnostic_text(
 ) -> str:
     class_context = ""
     if predicted_class in config.classes:
-        class_context = f" (class index {config.classes.index(predicted_class) + 1}/{len(config.classes)})"
+        class_context = (
+            f" (class index {config.classes.index(predicted_class) + 1}/{len(config.classes)})"
+        )
 
     caption = generate_caption(image, config)
     disclaimer = (

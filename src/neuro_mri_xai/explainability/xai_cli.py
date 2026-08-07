@@ -15,6 +15,7 @@ from neuro_mri_xai.config import load_config
 from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
 from neuro_mri_xai.explainability.pipeline import explain_sample
 from neuro_mri_xai.models.sam_roi import unload_sam
+from neuro_mri_xai.utils.cli import add_data_dir_argument
 from neuro_mri_xai.utils.paths import ensure_dir
 from neuro_mri_xai.utils.vram import empty_cuda_cache
 
@@ -24,8 +25,9 @@ def run_xai(
     checkpoint_path: str,
     image_path: str,
     output_dir: str | None = None,
+    data_dir: str | None = None,
 ) -> dict:
-    config = load_config(config_path)
+    config = load_config(config_path, data_dir=data_dir)
     out = ensure_dir(output_dir or config.explainability.figures_dir)
     model, class_names = load_checkpoint_model(checkpoint_path, config)
     result = explain_sample(model, image_path, config, class_names, out)
@@ -46,8 +48,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--image", required=True)
     parser.add_argument("--output-dir", default=None)
+    add_data_dir_argument(parser)
     args = parser.parse_args(argv)
-    run_xai(args.config, args.checkpoint, args.image, args.output_dir)
+    run_xai(args.config, args.checkpoint, args.image, args.output_dir, data_dir=args.data_dir)
 
 
 if __name__ == "__main__":

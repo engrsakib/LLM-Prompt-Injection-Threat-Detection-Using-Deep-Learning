@@ -11,14 +11,29 @@ FILE_TO_TEST: dict[str, str] = {
     "download.py": "tests/test_download.py",
     "transforms.py": "tests/test_dataset.py",
     "paths.py": "tests/test_paths.py",
+    "cli.py": "tests/test_cli.py",
     "config.py": "tests/test_paths.py",
 }
 
 MODEL_RELATED = {
-    "trainer.py", "train_cli.py", "metrics.py", "test_eval.py", "checkpoint.py",
-    "pipeline.py", "gradcam.py", "attention_rollout.py", "sam_overlay.py", "xai_cli.py",
-    "report.py", "lora.py", "sam_roi.py", "swin_classifier.py",
-    "florence_reporter.py", "__init__.py", "seed.py", "plotting.py",
+    "trainer.py",
+    "train_cli.py",
+    "metrics.py",
+    "test_eval.py",
+    "checkpoint.py",
+    "pipeline.py",
+    "gradcam.py",
+    "attention_rollout.py",
+    "sam_overlay.py",
+    "xai_cli.py",
+    "report.py",
+    "lora.py",
+    "sam_roi.py",
+    "swin_classifier.py",
+    "florence_reporter.py",
+    "__init__.py",
+    "seed.py",
+    "plotting.py",
 }
 
 
@@ -46,7 +61,12 @@ def select_tests(changed_files: list[str]) -> list[str]:
             selected.add(FILE_TO_TEST[name])
         elif name in FILE_TO_TEST:
             selected.add(FILE_TO_TEST[name])
-        elif "models" in parts or "training" in parts or "evaluation" in parts or "explainability" in parts:
+        elif (
+            "models" in parts
+            or "training" in parts
+            or "evaluation" in parts
+            or "explainability" in parts
+        ):
             selected.add("tests/test_models.py")
         elif name in MODEL_RELATED:
             selected.add("tests/test_models.py")
