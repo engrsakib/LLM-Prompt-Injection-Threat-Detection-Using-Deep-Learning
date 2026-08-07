@@ -1,7 +1,8 @@
 dataset:
   source: "kagglehub"
-  kagglehub_handle: "alifatahi/multi-class-neurological-disorder-mcnd-dataset"
-  kaggle_dataset: "alifatahi/multi-class-neurological-disorder-mcnd-dataset"
+  kagglehub_handle: "engrsakib02/neurological-disorders-mri-dataset-for-xai"
+  kaggle_dataset: "engrsakib02/neurological-disorders-mri-dataset-for-xai"
+  kaggle_data_subdir: "data"
   gdrive_path: "/content/drive/MyDrive/neuro-mri-data/data"
   val_split: 0.1
   test_split: 0.1
@@ -9,6 +10,15 @@ dataset:
   image_size: 224
   batch_size: 16
   num_workers: 2
+  class_names:
+    - AD_MildDemented
+    - AD_ModerateDemented
+    - AD_VeryMildDemented
+    - BT_glioma
+    - BT_meningioma
+    - BT_pituitary
+    - MS
+    - Normal
 
 model:
   backbone: "swin_base_patch4_window7_224"
@@ -61,6 +71,7 @@ explainability:
 report:
   output_dir: "outputs/reports"
 
+# Backward-compatible alias; prefer dataset.class_names
 classes:
   - AD_MildDemented
   - AD_ModerateDemented

@@ -34,8 +34,8 @@ def run_training(
     roi_fn = None
     train_loader, val_loader, _, class_names = get_dataloaders(config, roi_fn=roi_fn)
 
-    if not class_names and config.classes:
-        class_names = config.classes
+    if not class_names:
+        class_names = config.get_class_names()
     config.model.num_classes = len(class_names)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

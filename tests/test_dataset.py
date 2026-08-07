@@ -4,30 +4,59 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import torch
 from PIL import Image
 
-from neuro_mri_xai.data.dataset import MRIDataset, stratified_split_indices
+from neuro_mri_xai.config import Config, DatasetConfig
+from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
+from neuro_mri_xai.data.dataset import MRIDataset, resolve_data_dir, stratified_split_indices
 from neuro_mri_xai.data.transforms import get_transforms
+from neuro_mri_xai.utils.paths import resolve_imagefolder_root
 
 
-def _make_fake_dataset(root: Path, n_per_class: int = 10, n_classes: int = 8) -> None:
-    for i in range(n_classes):
-        cls_dir = root / f"class_{i}"
+def _make_fake_dataset(root: Path, n_per_class: int = 10) -> None:
+    for class_name in EXPECTED_CLASS_NAMES:
+        cls_dir = root / class_name
         cls_dir.mkdir(parents=True, exist_ok=True)
         for j in range(n_per_class):
-            Image.new("RGB", (64, 64), color=(j * 10 % 255, 50, 100)).save(cls_dir / f"img_{j}.jpg")
+            Image.new("RGB", (64, 64), color=(j * 10 % 255, 50, 100)).save(
+                cls_dir / f"img_{j}.jpg",
+            )
 
 
 def test_mri_dataset_loads_samples(tmp_path: Path) -> None:
     _make_fake_dataset(tmp_path)
     ds = MRIDataset(tmp_path, transform=get_transforms(224, train=False))
-    assert len(ds) == 80
-    assert len(ds.classes) == 8
+    assert len(ds) == NUM_CLASSES * 10
+    assert len(ds.classes) == NUM_CLASSES
+    assert ds.classes == sorted(EXPECTED_CLASS_NAMES)
     img, label = ds[0]
     assert isinstance(img, torch.Tensor)
     assert img.shape == (3, 224, 224)
-    assert 0 <= label < 8
+    assert 0 <= label < NUM_CLASSES
+
+
+def test_mri_dataset_rejects_wrong_class_count(tmp_path: Path) -> None:
+    (tmp_path / "OnlyOneClass").mkdir()
+    (tmp_path / "OnlyOneClass" / "a.jpg").write_bytes(b"x")
+    with pytest.raises(RuntimeError, match="Expected 8 class"):
+        MRIDataset(tmp_path)
+
+
+def test_resolve_imagefolder_outer_root_to_data(tmp_path: Path) -> None:
+    inner = tmp_path / "neurological-disorders-mri-dataset-for-xai" / "data"
+    _make_fake_dataset(inner, n_per_class=1)
+    outer = tmp_path / "neurological-disorders-mri-dataset-for-xai"
+    resolved = resolve_imagefolder_root(outer)
+    assert resolved == inner.resolve()
+
+
+def test_resolve_data_dir_navigates_data_subfolder(tmp_path: Path) -> None:
+    inner = tmp_path / "bundle" / "data"
+    _make_fake_dataset(inner, n_per_class=1)
+    cfg = Config(dataset=DatasetConfig(data_dir=tmp_path / "bundle"))
+    assert resolve_data_dir(cfg) == inner.resolve()
 
 
 def test_stratified_split_sizes() -> None:

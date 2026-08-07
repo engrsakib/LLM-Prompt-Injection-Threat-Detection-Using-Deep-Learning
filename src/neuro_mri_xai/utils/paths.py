@@ -13,6 +13,8 @@ import os
 from enum import Enum
 from pathlib import Path
 
+from neuro_mri_xai.data.constants import DEFAULT_KAGGLE_DATA_SUBDIR
+
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff")
 
 
@@ -118,15 +120,30 @@ def find_kagglehub_cache(handle: str) -> Path | None:
     return None
 
 
-def _discover_kaggle_input_root() -> Path | None:
-    """Scan mounted Kaggle input datasets for an ImageFolder layout."""
+def _discover_kaggle_input_root(config: dict | None = None) -> Path | None:
+    """Scan mounted Kaggle input datasets for root/data/<classes> layout."""
     kaggle_input = Path("/kaggle/input")
     if not kaggle_input.is_dir():
         return None
 
+    data_subdir = DEFAULT_KAGGLE_DATA_SUBDIR
+    if config:
+        data_subdir = config.get("dataset", {}).get("kaggle_data_subdir", data_subdir)
+
+    # Prefer known Kaggle mount: neurological-disorders-mri-dataset-for-xai/data/
+    preferred_root = kaggle_input / "neurological-disorders-mri-dataset-for-xai"
+    for candidate in (preferred_root / data_subdir, preferred_root):
+        if candidate.is_dir():
+            resolved = resolve_imagefolder_root(candidate)
+            if resolved is not None:
+                return resolved.resolve()
+
     for dataset_dir in sorted(kaggle_input.iterdir()):
         if not dataset_dir.is_dir():
             continue
+        nested_data = dataset_dir / data_subdir
+        if _has_imagefolder_layout(nested_data):
+            return nested_data.resolve()
         resolved = resolve_imagefolder_root(dataset_dir)
         if resolved is not None:
             return resolved.resolve()
@@ -185,7 +202,7 @@ def get_data_root(config: dict | None = None) -> Path:
                 return resolved if resolved is not None else gdrive
 
     if runtime == RuntimeEnv.KAGGLE:
-        kaggle_root = _discover_kaggle_input_root()
+        kaggle_root = _discover_kaggle_input_root(config)
         if kaggle_root is not None:
             return kaggle_root
 

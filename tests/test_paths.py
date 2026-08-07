@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from unittest import mock
 
+from neuro_mri_xai.config import load_config
+from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES
 from neuro_mri_xai.utils.paths import (
     RuntimeEnv,
     detect_runtime_env,
@@ -20,6 +22,13 @@ from neuro_mri_xai.utils.paths import (
 def test_get_project_root_finds_configs():
     root = get_project_root()
     assert (root / "configs" / "default.yaml").exists()
+
+
+def test_load_config_class_names() -> None:
+    cfg = load_config()
+    assert cfg.model.num_classes == 8
+    assert cfg.get_class_names() == EXPECTED_CLASS_NAMES
+    assert cfg.dataset.class_names == EXPECTED_CLASS_NAMES
 
 
 def test_resolve_path_relative():
@@ -49,16 +58,17 @@ def test_env_override_project_root(tmp_path):
 
 
 def test_get_data_root_env_override(tmp_path: Path) -> None:
-    data_root = tmp_path / "mcnd"
-    cls = data_root / "Normal"
-    cls.mkdir(parents=True)
-    (cls / "img.jpg").write_bytes(b"x")
+    data_root = tmp_path / "data"
+    for cls in EXPECTED_CLASS_NAMES:
+        cls_dir = data_root / cls
+        cls_dir.mkdir(parents=True)
+        (cls_dir / "img.jpg").write_bytes(b"x")
     with mock.patch.dict(os.environ, {"NEURO_MRI_DATA_DIR": str(data_root)}):
         assert get_data_root() == data_root.resolve()
 
 
 def test_resolve_imagefolder_root_nested(tmp_path: Path) -> None:
-    inner = tmp_path / "bundle" / "data" / "ClassA"
+    inner = tmp_path / "bundle" / "data" / "Normal"
     inner.mkdir(parents=True)
     (inner / "img.jpg").write_bytes(b"x")
     resolved = resolve_imagefolder_root(tmp_path / "bundle")

@@ -25,7 +25,7 @@ def load_checkpoint_model(
 ) -> tuple[nn.Module, list[str]]:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    class_names: list[str] = ckpt.get("class_names", config.classes)
+    class_names: list[str] = ckpt.get("class_names", config.get_class_names())
 
     if ckpt.get("backbone"):
         config.model.backbone = ckpt["backbone"]

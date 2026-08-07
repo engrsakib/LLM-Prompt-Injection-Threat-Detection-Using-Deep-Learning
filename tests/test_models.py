@@ -8,6 +8,7 @@ import torch
 from PIL import Image
 
 from neuro_mri_xai.config import Config, load_config
+from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES
 from neuro_mri_xai.models import build_model
 from neuro_mri_xai.models.lora import apply_lora, get_trainable_param_count
 from neuro_mri_xai.models.sam_roi import _otsu_bbox, overlay_heatmap_on_mask
@@ -69,15 +70,15 @@ def test_explain_sample_return_keys(tmp_path, config: Config):
     pytest.importorskip("timm")
     from neuro_mri_xai.explainability.pipeline import explain_sample
 
-    class_dir = tmp_path / "Normal"
+    data_root = tmp_path / "data"
+    class_dir = data_root / "Normal"
     class_dir.mkdir(parents=True)
     img_path = class_dir / "sample.jpg"
     Image.new("RGB", (224, 224), color=(128, 64, 32)).save(img_path)
 
     config.sam.enabled = False
     model = build_model(config, pretrained=False)
-    class_names = ["Normal"]
-    result = explain_sample(model, img_path, config, class_names, tmp_path / "xai")
+    result = explain_sample(model, img_path, config, EXPECTED_CLASS_NAMES, tmp_path / "xai")
     assert "prediction" in result
     assert "confidence" in result
     assert "gradcam_path" in result

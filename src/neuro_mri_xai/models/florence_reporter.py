@@ -85,10 +85,10 @@ def generate_diagnostic_text(
     confidence: float,
     config: Config,
 ) -> str:
-    class_context = ""
-    if predicted_class in config.classes:
+    class_names = config.get_class_names()
+    if predicted_class in class_names:
         class_context = (
-            f" (class index {config.classes.index(predicted_class) + 1}/{len(config.classes)})"
+            f" (class index {class_names.index(predicted_class) + 1}/{len(class_names)})"
         )
 
     caption = generate_caption(image, config)

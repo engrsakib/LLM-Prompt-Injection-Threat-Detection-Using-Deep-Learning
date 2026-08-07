@@ -90,7 +90,11 @@ def evaluate_classifier(
     y_true, y_pred, y_prob = collect_predictions(model, loader, device)
     return {
         "metrics": compute_metrics(y_true, y_pred, y_prob, class_names),
-        "confusion_matrix": confusion_matrix(y_true, y_pred),
+        "confusion_matrix": confusion_matrix(
+            y_true,
+            y_pred,
+            labels=list(range(len(class_names))),
+        ),
         "y_true": y_true,
         "y_pred": y_pred,
         "y_prob": y_prob,

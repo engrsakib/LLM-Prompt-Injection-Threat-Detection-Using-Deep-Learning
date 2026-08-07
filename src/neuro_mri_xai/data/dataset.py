@@ -11,13 +11,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
 from PIL import Image
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, Subset
 
-from neuro_mri_xai.config import Config
+from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
 from neuro_mri_xai.data.transforms import (
     get_test_transforms,
     get_train_transforms,
@@ -25,9 +26,12 @@ from neuro_mri_xai.data.transforms import (
 )
 from neuro_mri_xai.utils.paths import resolve_imagefolder_root
 
+if TYPE_CHECKING:
+    from neuro_mri_xai.config import Config
+
 
 def resolve_data_dir(config: Config) -> Path:
-    """Resolve ImageFolder root from config, validating layout when present."""
+    """Resolve ImageFolder root, navigating outer root -> data/ when needed."""
     data_dir = Path(config.dataset.data_dir)
     if data_dir.exists():
         resolved = resolve_imagefolder_root(data_dir)
@@ -36,14 +40,37 @@ def resolve_data_dir(config: Config) -> Path:
     return data_dir
 
 
+def _validate_class_folders(class_names: list[str], root: Path) -> None:
+    if len(class_names) != NUM_CLASSES:
+        raise RuntimeError(
+            f"Expected {NUM_CLASSES} class subdirectories under {root}, found {len(class_names)}: "
+            f"{class_names}",
+        )
+    missing = [name for name in EXPECTED_CLASS_NAMES if name not in class_names]
+    if missing:
+        raise RuntimeError(
+            f"Missing expected class folders under {root}: {missing}. Found: {class_names}",
+        )
+
+
 class MRIDataset(Dataset):
-    """ImageFolder-style dataset with optional SAM ROI preprocessing."""
+    """ImageFolder-style dataset with optional SAM ROI preprocessing.
+
+    Expects class-labelled subdirectories directly under ``root`` (typically the
+    ``data/`` folder):
+
+        root/
+        ├── AD_MildDemented/
+        ├── ...
+        └── Normal/
+    """
 
     def __init__(
         self,
         root: str | Path,
         transform: Callable | None = None,
         roi_fn: Callable[[Image.Image], Image.Image] | None = None,
+        expected_classes: list[str] | None = None,
     ) -> None:
         self.root = Path(root)
         self.transform = transform
@@ -55,14 +82,23 @@ class MRIDataset(Dataset):
         if not self.root.exists():
             raise FileNotFoundError(
                 f"Dataset directory not found: {self.root}. "
-                "Run: python scripts/download_data.py --use-kagglehub "
-                "or python scripts/download_data.py --source kaggle",
+                "Pass --data-dir pointing to the folder containing class subdirectories "
+                "(e.g. /kaggle/input/neurological-disorders-mri-dataset-for-xai/data).",
             )
 
         self.classes = sorted(
             d.name for d in self.root.iterdir() if d.is_dir() and not d.name.startswith(".")
         )
+        _validate_class_folders(self.classes, self.root)
         self.class_to_idx = {name: i for i, name in enumerate(self.classes)}
+
+        if expected_classes:
+            expected_sorted = sorted(expected_classes)
+            if self.classes != expected_sorted:
+                raise RuntimeError(
+                    f"Class folder order mismatch under {self.root}. "
+                    f"Expected (sorted): {expected_sorted}, found: {self.classes}",
+                )
 
         for class_name in self.classes:
             class_dir = self.root / class_name
@@ -118,8 +154,14 @@ def get_dataloaders(
     data_dir = resolve_data_dir(config)
     image_size = config.dataset.image_size
     use_roi = roi_fn if config.sam.enabled else None
+    expected_classes = config.get_class_names()
 
-    base_dataset = MRIDataset(root=data_dir, transform=None, roi_fn=use_roi)
+    base_dataset = MRIDataset(
+        root=data_dir,
+        transform=None,
+        roi_fn=use_roi,
+        expected_classes=expected_classes,
+    )
     class_names = base_dataset.classes
     labels = [label for _, label in base_dataset.samples]
 
@@ -131,15 +173,30 @@ def get_dataloaders(
     )
 
     train_ds = Subset(
-        MRIDataset(data_dir, get_train_transforms(image_size), roi_fn=use_roi),
+        MRIDataset(
+            data_dir,
+            get_train_transforms(image_size),
+            roi_fn=use_roi,
+            expected_classes=expected_classes,
+        ),
         train_idx,
     )
     val_ds = Subset(
-        MRIDataset(data_dir, get_val_transforms(image_size), roi_fn=use_roi),
+        MRIDataset(
+            data_dir,
+            get_val_transforms(image_size),
+            roi_fn=use_roi,
+            expected_classes=expected_classes,
+        ),
         val_idx,
     )
     test_ds = Subset(
-        MRIDataset(data_dir, get_test_transforms(image_size), roi_fn=use_roi),
+        MRIDataset(
+            data_dir,
+            get_test_transforms(image_size),
+            roi_fn=use_roi,
+            expected_classes=expected_classes,
+        ),
         test_idx,
     )
 

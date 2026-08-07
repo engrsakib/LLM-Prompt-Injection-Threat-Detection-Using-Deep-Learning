@@ -90,9 +90,24 @@ flowchart LR
 
 ## Dataset
 
-**Primary:** [Multi-Class Neurological Disorder (MCND) Dataset](https://www.kaggle.com/datasets/alifatahi/multi-class-neurological-disorder-mcnd-dataset)
+**Primary:** [Neurological Disorders MRI Dataset for XAI](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai)
 
-Downloaded via **kagglehub** (primary) with automatic fallback to the Kaggle CLI or mounted notebook input paths.
+**Layout (ImageFolder root = `data/` subfolder):**
+
+```
+/kaggle/input/neurological-disorders-mri-dataset-for-xai/
+└── data/
+    ├── AD_MildDemented/
+    ├── AD_ModerateDemented/
+    ├── AD_VeryMildDemented/
+    ├── BT_glioma/
+    ├── BT_meningioma/
+    ├── BT_pituitary/
+    ├── MS/
+    └── Normal/
+```
+
+Pass either the outer dataset folder or the inner `data/` folder to `--data-dir`; the loader auto-navigates to the 8 class subdirectories.
 
 | Class | Description |
 |-------|-------------|
@@ -101,7 +116,7 @@ Downloaded via **kagglehub** (primary) with automatic fallback to the Kaggle CLI
 | `MS` | Multiple sclerosis |
 | `Normal` | Healthy control |
 
-Stratified **80/10/10** train/val/test split (no data leakage).
+Stratified **80/10/10** train/val/test split · **8 classes** · ~16,400 images.
 
 ---
 
@@ -200,11 +215,11 @@ Copyright (C) 2026 Md. Nazmus Sakib — [GNU GPL v3.0](LICENSE)
 
 ## Execution Guide — Kaggle Notebooks
 
-Use a **GPU accelerator (T4, 16 GB VRAM)**. Attach the MCND dataset before running:
+Use a **GPU accelerator (T4, 16 GB VRAM)**. Attach the dataset before running:
 
-**Dataset to add:** [alifatahi/multi-class-neurological-disorder-mcnd-dataset](https://www.kaggle.com/datasets/alifatahi/multi-class-neurological-disorder-mcnd-dataset)
+**Dataset to add:** [engrsakib02/neurological-disorders-mri-dataset-for-xai](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai)
 
-In the Kaggle notebook sidebar: **Add Input → search `multi-class-neurological-disorder-mcnd-dataset` → Add**.
+In the Kaggle notebook sidebar: **Add Input → search `neurological-disorders-mri-dataset-for-xai` → Add**.
 
 ### Cell 1 — Clone repository
 
@@ -230,7 +245,7 @@ from pathlib import Path
 # Confirm the mounted input folder name (may vary slightly by Kaggle version)
 print("Kaggle inputs:", os.listdir("/kaggle/input"))
 
-DATA_DIR = "/kaggle/input/multi-class-neurological-disorder-mcnd-dataset"
+DATA_DIR = "/kaggle/input/neurological-disorders-mri-dataset-for-xai/data"
 
 os.environ["NEURO_MRI_PROJECT_ROOT"] = "/kaggle/working/Neurological-MRI-XAI-Pipeline"
 os.environ["NEURO_MRI_SAM_ENABLED"] = "false"

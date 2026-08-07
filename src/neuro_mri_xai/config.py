@@ -16,14 +16,16 @@ from typing import Any
 
 import yaml
 
+from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
 from neuro_mri_xai.utils.paths import get_data_root, get_project_root, resolve_path
 
 
 @dataclass
 class DatasetConfig:
     source: str = "kagglehub"
-    kagglehub_handle: str = "alifatahi/multi-class-neurological-disorder-mcnd-dataset"
-    kaggle_dataset: str = ""
+    kagglehub_handle: str = "engrsakib02/neurological-disorders-mri-dataset-for-xai"
+    kaggle_dataset: str = "engrsakib02/neurological-disorders-mri-dataset-for-xai"
+    kaggle_data_subdir: str = "data"
     gdrive_path: str = ""
     val_split: float = 0.1
     test_split: float = 0.1
@@ -32,6 +34,7 @@ class DatasetConfig:
     batch_size: int = 16
     num_workers: int = 2
     data_dir: Path = field(default_factory=lambda: Path("data"))
+    class_names: list[str] = field(default_factory=lambda: list(EXPECTED_CLASS_NAMES))
 
 
 @dataclass
@@ -118,6 +121,13 @@ class Config:
     def sam_checkpoint_path(self) -> Path:
         return resolve_path(Path(self.sam.weights_dir) / self.sam.checkpoint, self.project_root)
 
+    def get_class_names(self) -> list[str]:
+        if self.dataset.class_names:
+            return list(self.dataset.class_names)
+        if self.classes:
+            return list(self.classes)
+        return list(EXPECTED_CLASS_NAMES)
+
 
 def _merge_dataclass(cls, data: dict[str, Any]):
     fields = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
@@ -147,7 +157,17 @@ def load_config(
     cfg.explainability = _merge_dataclass(ExplainabilityConfig, raw.get("explainability", {}))
     cfg.report = _merge_dataclass(ReportConfig, raw.get("report", {}))
     cfg.vram = _merge_dataclass(VramConfig, raw.get("vram", {}))
-    cfg.classes = raw.get("classes", cfg.classes)
+
+    dataset_raw = raw.get("dataset", {})
+    if dataset_raw.get("class_names"):
+        cfg.dataset.class_names = list(dataset_raw["class_names"])
+    elif raw.get("classes"):
+        cfg.dataset.class_names = list(raw["classes"])
+    else:
+        cfg.dataset.class_names = list(EXPECTED_CLASS_NAMES)
+
+    cfg.classes = cfg.get_class_names()
+    cfg.model.num_classes = NUM_CLASSES
 
     cfg.dataset.data_dir = get_data_root(raw)
     if data_dir:

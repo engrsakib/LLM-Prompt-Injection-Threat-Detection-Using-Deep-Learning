@@ -7,6 +7,7 @@
 
 """Data engineering: datasets, splits, and augmentation pipelines."""
 
+from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
 from neuro_mri_xai.data.dataset import (
     MRIDataset,
     get_dataloaders,
@@ -21,6 +22,8 @@ from neuro_mri_xai.data.transforms import (
 )
 
 __all__ = [
+    "EXPECTED_CLASS_NAMES",
+    "NUM_CLASSES",
     "MRIDataset",
     "get_dataloaders",
     "resolve_data_dir",
