@@ -9,10 +9,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
-import numpy as np
 import torch
 from PIL import Image
 from sklearn.model_selection import train_test_split
