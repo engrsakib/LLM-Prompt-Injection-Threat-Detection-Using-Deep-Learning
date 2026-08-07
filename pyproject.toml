@@ -57,6 +57,7 @@ module = [
     "sklearn.*",
     "PIL.*",
     "kaggle.*",
+    "kagglehub.*",
 ]
 ignore_missing_imports = true
 

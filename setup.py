@@ -22,6 +22,7 @@ setup(
         "seaborn>=0.13.0",
         "pyyaml>=6.0",
         "kaggle>=1.6.0",
+        "kagglehub>=0.3.0",
         "einops>=0.7.0",
     ],
 )

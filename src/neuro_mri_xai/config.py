@@ -21,7 +21,8 @@ from neuro_mri_xai.utils.paths import get_data_root, get_project_root, resolve_p
 
 @dataclass
 class DatasetConfig:
-    source: str = "kaggle"
+    source: str = "kagglehub"
+    kagglehub_handle: str = "alifatahi/multi-class-neurological-disorder-mcnd-dataset"
     kaggle_dataset: str = ""
     gdrive_path: str = ""
     val_split: float = 0.1

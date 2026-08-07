@@ -8,6 +8,7 @@ from pathlib import Path
 
 FILE_TO_TEST: dict[str, str] = {
     "dataset.py": "tests/test_dataset.py",
+    "download.py": "tests/test_download.py",
     "transforms.py": "tests/test_dataset.py",
     "paths.py": "tests/test_paths.py",
     "config.py": "tests/test_paths.py",

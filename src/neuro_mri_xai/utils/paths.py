@@ -1,3 +1,10 @@
+# Copyright (C) 2026 Md. Nazmus Sakib
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
 """Environment-aware path resolution."""
 
 from __future__ import annotations
@@ -5,6 +12,8 @@ from __future__ import annotations
 import os
 from enum import Enum
 from pathlib import Path
+
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff")
 
 
 class RuntimeEnv(str, Enum):
@@ -56,10 +65,74 @@ def get_project_root() -> Path:
     return Path.cwd().resolve()
 
 
+def _has_imagefolder_layout(path: Path) -> bool:
+    if not path.is_dir():
+        return False
+    class_dirs = [
+        d for d in path.iterdir() if d.is_dir() and not d.name.startswith(".")
+    ]
+    if not class_dirs:
+        return False
+    return any(
+        any(class_dir.glob(f"*{ext}")) for class_dir in class_dirs for ext in IMAGE_EXTENSIONS
+    )
+
+
+def resolve_imagefolder_root(candidate: Path) -> Path | None:
+    """Locate an ImageFolder-style class directory tree under candidate."""
+    candidate = Path(candidate).resolve()
+    if _has_imagefolder_layout(candidate):
+        return candidate
+
+    for sub_name in ("data", "images", "train", "dataset"):
+        sub_path = candidate / sub_name
+        if _has_imagefolder_layout(sub_path):
+            return sub_path.resolve()
+
+    if candidate.is_dir():
+        for child in candidate.iterdir():
+            if not child.is_dir() or child.name.startswith("."):
+                continue
+            if _has_imagefolder_layout(child):
+                return child.resolve()
+            nested = child / "data"
+            if _has_imagefolder_layout(nested):
+                return nested.resolve()
+
+    return None
+
+
+def find_kagglehub_cache(handle: str) -> Path | None:
+    """Return cached kagglehub ImageFolder root without triggering a download."""
+    if not handle or "/" not in handle:
+        return None
+
+    owner, dataset_name = handle.split("/", 1)
+    cache_root = Path.home() / ".cache" / "kagglehub" / "datasets" / owner / dataset_name
+    if not cache_root.exists():
+        return None
+
+    version_dirs = sorted(cache_root.glob("versions/*"), reverse=True)
+    for version_dir in version_dirs:
+        resolved = resolve_imagefolder_root(version_dir)
+        if resolved is not None:
+            return resolved.resolve()
+    return None
+
+
 def get_data_root(config: dict | None = None) -> Path:
     env_data = os.environ.get("NEURO_MRI_DATA_DIR")
     if env_data:
         return Path(env_data).resolve()
+
+    if config:
+        dataset_cfg = config.get("dataset", {})
+        source = dataset_cfg.get("source", "kaggle")
+        kagglehub_handle = dataset_cfg.get("kagglehub_handle")
+        if source == "kagglehub" and kagglehub_handle:
+            cached = find_kagglehub_cache(kagglehub_handle)
+            if cached is not None:
+                return cached
 
     runtime = detect_runtime_env()
     project_root = get_project_root()

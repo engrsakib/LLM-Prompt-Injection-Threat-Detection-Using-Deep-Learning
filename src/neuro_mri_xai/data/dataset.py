@@ -23,6 +23,17 @@ from neuro_mri_xai.data.transforms import (
     get_train_transforms,
     get_val_transforms,
 )
+from neuro_mri_xai.utils.paths import resolve_imagefolder_root
+
+
+def resolve_data_dir(config: Config) -> Path:
+    """Resolve ImageFolder root from config, validating layout when present."""
+    data_dir = Path(config.dataset.data_dir)
+    if data_dir.exists():
+        resolved = resolve_imagefolder_root(data_dir)
+        if resolved is not None:
+            return resolved
+    return data_dir
 
 
 class MRIDataset(Dataset):
@@ -43,7 +54,9 @@ class MRIDataset(Dataset):
 
         if not self.root.exists():
             raise FileNotFoundError(
-                f"Dataset directory not found: {self.root}. Run scripts/download_data.py first."
+                f"Dataset directory not found: {self.root}. "
+                "Run: python scripts/download_data.py --use-kagglehub "
+                "or python scripts/download_data.py --source kaggle",
             )
 
         self.classes = sorted(
@@ -96,7 +109,7 @@ def get_dataloaders(
     config: Config,
     roi_fn: Callable[[Image.Image], Image.Image] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader, list[str]]:
-    data_dir = config.dataset.data_dir
+    data_dir = resolve_data_dir(config)
     image_size = config.dataset.image_size
     use_roi = roi_fn if config.sam.enabled else None
 
