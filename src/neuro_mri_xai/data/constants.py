@@ -23,3 +23,9 @@ EXPECTED_CLASS_NAMES: list[str] = [
 NUM_CLASSES: int = len(EXPECTED_CLASS_NAMES)
 
 DEFAULT_KAGGLE_DATA_SUBDIR: str = "data"
+
+# Canonical Kaggle notebook mount (Add Input → neurological-disorders-mri-dataset-for-xai)
+DEFAULT_KAGGLE_MOUNT_ROOT: str = (
+    "/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai"
+)
+DEFAULT_KAGGLE_DATA_DIR: str = f"{DEFAULT_KAGGLE_MOUNT_ROOT}/{DEFAULT_KAGGLE_DATA_SUBDIR}"

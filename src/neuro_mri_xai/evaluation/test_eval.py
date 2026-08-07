@@ -37,6 +37,7 @@ def run_evaluation(
 ) -> dict:
     config = load_config(config_path, data_dir=data_dir)
     set_seed(config.dataset.seed)
+    print(f"Using dataset: {config.dataset.data_dir}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     roi_fn = make_roi_fn(config) if config.sam.enabled else None

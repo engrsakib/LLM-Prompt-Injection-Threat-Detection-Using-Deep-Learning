@@ -13,7 +13,10 @@ import os
 from enum import Enum
 from pathlib import Path
 
-from neuro_mri_xai.data.constants import DEFAULT_KAGGLE_DATA_SUBDIR
+from neuro_mri_xai.data.constants import (
+    DEFAULT_KAGGLE_DATA_SUBDIR,
+    DEFAULT_KAGGLE_MOUNT_ROOT,
+)
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff")
 
@@ -102,6 +105,27 @@ def resolve_imagefolder_root(candidate: Path) -> Path | None:
     return None
 
 
+def resolve_dataset_root(candidate: Path) -> Path | None:
+    """Resolve ImageFolder root: prefer ``candidate/data/``, else ``candidate`` itself."""
+    candidate = Path(candidate).expanduser().resolve()
+    if not candidate.is_dir():
+        return None
+
+    data_sub = candidate / DEFAULT_KAGGLE_DATA_SUBDIR
+    if data_sub.is_dir():
+        resolved = resolve_imagefolder_root(data_sub)
+        if resolved is not None:
+            return resolved
+
+    return resolve_imagefolder_root(candidate)
+
+
+def resolve_kaggle_dataset_root(mount_root: Path | str | None = None) -> Path | None:
+    """Resolve the canonical Kaggle dataset mount to an ImageFolder root."""
+    root = Path(mount_root) if mount_root is not None else Path(DEFAULT_KAGGLE_MOUNT_ROOT)
+    return resolve_dataset_root(root)
+
+
 def find_kagglehub_cache(handle: str) -> Path | None:
     """Return cached kagglehub ImageFolder root without triggering a download."""
     if not handle or "/" not in handle:
@@ -121,26 +145,44 @@ def find_kagglehub_cache(handle: str) -> Path | None:
 
 
 def _discover_kaggle_input_root(config: dict | None = None) -> Path | None:
-    """Scan mounted Kaggle input datasets for root/data/<classes> layout."""
+    """Scan mounted Kaggle input datasets for root/data/<classes> or flat class layout."""
     kaggle_input = Path("/kaggle/input")
     if not kaggle_input.is_dir():
         return None
+
+    # Prefer verified mount: /kaggle/input/datasets/engrsakib02/.../data or flat classes
+    canonical = resolve_kaggle_dataset_root()
+    if canonical is not None:
+        return canonical
 
     data_subdir = DEFAULT_KAGGLE_DATA_SUBDIR
     if config:
         data_subdir = config.get("dataset", {}).get("kaggle_data_subdir", data_subdir)
 
-    # Prefer known Kaggle mount: neurological-disorders-mri-dataset-for-xai/data/
-    preferred_root = kaggle_input / "neurological-disorders-mri-dataset-for-xai"
-    for candidate in (preferred_root / data_subdir, preferred_root):
-        if candidate.is_dir():
-            resolved = resolve_imagefolder_root(candidate)
-            if resolved is not None:
-                return resolved.resolve()
+    legacy_roots = [
+        kaggle_input / "neurological-disorders-mri-dataset-for-xai",
+        kaggle_input / "datasets" / "engrsakib02" / "neurological-disorders-mri-dataset-for-xai",
+    ]
+    for preferred_root in legacy_roots:
+        resolved = resolve_kaggle_dataset_root(preferred_root)
+        if resolved is not None:
+            return resolved
 
-    for dataset_dir in sorted(kaggle_input.iterdir()):
-        if not dataset_dir.is_dir():
-            continue
+    datasets_dir = kaggle_input / "datasets"
+    search_roots: list[Path] = []
+    if datasets_dir.is_dir():
+        search_roots.extend(
+            child
+            for child in sorted(datasets_dir.iterdir())
+            if child.is_dir() and not child.name.startswith(".")
+        )
+    search_roots.extend(
+        child
+        for child in sorted(kaggle_input.iterdir())
+        if child.is_dir() and child.name not in {"datasets"} and not child.name.startswith(".")
+    )
+
+    for dataset_dir in search_roots:
         nested_data = dataset_dir / data_subdir
         if _has_imagefolder_layout(nested_data):
             return nested_data.resolve()
@@ -177,7 +219,7 @@ def get_data_root(config: dict | None = None) -> Path:
     env_data = os.environ.get("NEURO_MRI_DATA_DIR")
     if env_data:
         path = Path(env_data).expanduser().resolve()
-        resolved = resolve_imagefolder_root(path)
+        resolved = resolve_dataset_root(path)
         return resolved if resolved is not None else path
 
     if config:
@@ -202,6 +244,9 @@ def get_data_root(config: dict | None = None) -> Path:
                 return resolved if resolved is not None else gdrive
 
     if runtime == RuntimeEnv.KAGGLE:
+        kaggle_root = resolve_kaggle_dataset_root()
+        if kaggle_root is not None:
+            return kaggle_root
         kaggle_root = _discover_kaggle_input_root(config)
         if kaggle_root is not None:
             return kaggle_root

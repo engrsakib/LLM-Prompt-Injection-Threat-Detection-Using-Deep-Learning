@@ -13,7 +13,7 @@ import argparse
 from pathlib import Path
 
 from neuro_mri_xai.config import Config
-from neuro_mri_xai.utils.paths import resolve_imagefolder_root
+from neuro_mri_xai.utils.paths import resolve_dataset_root
 
 
 def add_data_dir_argument(parser: argparse.ArgumentParser) -> None:
@@ -32,6 +32,14 @@ def apply_data_dir_override(config: Config, data_dir: str | Path | None) -> Conf
         return config
 
     path = Path(data_dir).expanduser().resolve()
-    resolved = resolve_imagefolder_root(path)
-    config.dataset.data_dir = resolved if resolved is not None else path
+    resolved = resolve_dataset_root(path)
+    if resolved is not None:
+        config.dataset.data_dir = resolved
+    elif path.is_dir():
+        config.dataset.data_dir = path
+    else:
+        raise FileNotFoundError(
+            f"Dataset directory not found: {path}. "
+            "Pass an existing path to --data-dir (outer mount or inner data/ folder).",
+        )
     return config

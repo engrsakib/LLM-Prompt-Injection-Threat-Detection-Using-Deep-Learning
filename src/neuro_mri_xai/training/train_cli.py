@@ -15,6 +15,7 @@ import torch
 
 from neuro_mri_xai.config import load_config
 from neuro_mri_xai.data import get_dataloaders
+from neuro_mri_xai.data.constants import NUM_CLASSES
 from neuro_mri_xai.models import build_model
 from neuro_mri_xai.training.trainer import Trainer
 from neuro_mri_xai.utils.cli import add_data_dir_argument
@@ -29,6 +30,7 @@ def run_training(
 ) -> str:
     config = load_config(config_path, data_dir=data_dir)
     set_seed(config.dataset.seed)
+    print(f"Using dataset: {config.dataset.data_dir}")
 
     # SAM ROI is expensive during training; disable unless explicitly enabled via env.
     roi_fn = None
@@ -36,7 +38,7 @@ def run_training(
 
     if not class_names:
         class_names = config.get_class_names()
-    config.model.num_classes = len(class_names)
+    config.model.num_classes = NUM_CLASSES
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model(config, pretrained=True)

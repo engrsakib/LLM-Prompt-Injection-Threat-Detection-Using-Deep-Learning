@@ -17,7 +17,13 @@ from typing import Any
 import yaml
 
 from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
-from neuro_mri_xai.utils.paths import get_data_root, get_project_root, resolve_path
+from neuro_mri_xai.utils.paths import (
+    get_data_root,
+    get_project_root,
+    resolve_dataset_root,
+    resolve_kaggle_dataset_root,
+    resolve_path,
+)
 
 
 @dataclass
@@ -169,7 +175,18 @@ def load_config(
     cfg.classes = cfg.get_class_names()
     cfg.model.num_classes = NUM_CLASSES
 
-    cfg.dataset.data_dir = get_data_root(raw)
+    configured_dir = dataset_raw.get("data_dir")
+    if configured_dir:
+        configured = Path(configured_dir)
+        if configured.is_dir():
+            resolved = resolve_dataset_root(configured)
+            cfg.dataset.data_dir = resolved if resolved is not None else configured.resolve()
+        else:
+            kaggle = resolve_kaggle_dataset_root()
+            cfg.dataset.data_dir = kaggle if kaggle is not None else get_data_root(raw)
+    else:
+        cfg.dataset.data_dir = get_data_root(raw)
+
     if data_dir:
         from neuro_mri_xai.utils.cli import apply_data_dir_override
 

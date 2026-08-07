@@ -80,6 +80,8 @@ def generate_report(
     data_dir: str | None = None,
 ) -> Path:
     config = load_config(config_path, data_dir=data_dir)
+    if data_dir:
+        print(f"Using dataset: {config.dataset.data_dir}")
     output_dir = ensure_dir(output_dir or config.report.output_dir)
     image_path = Path(image)
     model, class_names = load_checkpoint_model(checkpoint, config)

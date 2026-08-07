@@ -18,26 +18,70 @@ from PIL import Image
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, Subset
 
-from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
+from neuro_mri_xai.data.constants import (
+    DEFAULT_KAGGLE_DATA_DIR,
+    DEFAULT_KAGGLE_MOUNT_ROOT,
+    EXPECTED_CLASS_NAMES,
+    NUM_CLASSES,
+)
 from neuro_mri_xai.data.transforms import (
     get_test_transforms,
     get_train_transforms,
     get_val_transforms,
 )
-from neuro_mri_xai.utils.paths import resolve_imagefolder_root
+from neuro_mri_xai.utils.paths import (
+    resolve_dataset_root,
+    resolve_imagefolder_root,
+    resolve_kaggle_dataset_root,
+)
 
 if TYPE_CHECKING:
     from neuro_mri_xai.config import Config
 
 
 def resolve_data_dir(config: Config) -> Path:
-    """Resolve ImageFolder root, navigating outer root -> data/ when needed."""
-    data_dir = Path(config.dataset.data_dir)
-    if data_dir.exists():
-        resolved = resolve_imagefolder_root(data_dir)
+    """Resolve ImageFolder root with Kaggle mount and data/ subfolder fallbacks."""
+    candidate = Path(config.dataset.data_dir)
+
+    if candidate.is_dir():
+        resolved = resolve_dataset_root(candidate)
         if resolved is not None:
             return resolved
-    return data_dir
+
+    kaggle = resolve_kaggle_dataset_root()
+    if kaggle is not None:
+        return kaggle
+
+    if not candidate.is_absolute():
+        project_path = config.project_root / candidate
+        if project_path.is_dir():
+            resolved = resolve_dataset_root(project_path)
+            if resolved is not None:
+                return resolved
+
+    return candidate
+
+
+def ensure_dataset_available(config: Config) -> Path:
+    """Validate that the configured dataset path exists and contains 8 class folders."""
+    data_dir = resolve_data_dir(config)
+    if not data_dir.is_dir():
+        raise FileNotFoundError(
+            f"Dataset directory not found: {data_dir}\n"
+            f"Expected Kaggle mount at {DEFAULT_KAGGLE_DATA_DIR} "
+            f"or 8 class folders under {DEFAULT_KAGGLE_MOUNT_ROOT}.\n"
+            "Attach the dataset in Kaggle (Add Input) or pass --data-dir to override.",
+        )
+
+    resolved = resolve_imagefolder_root(data_dir)
+    if resolved is None:
+        raise FileNotFoundError(
+            f"No valid ImageFolder layout under {data_dir}. "
+            f"Expected 8 class subdirectories ({', '.join(EXPECTED_CLASS_NAMES[:3])}, ...) "
+            "each containing MRI images.",
+        )
+    config.dataset.data_dir = resolved
+    return resolved
 
 
 def _validate_class_folders(class_names: list[str], root: Path) -> None:
@@ -83,7 +127,7 @@ class MRIDataset(Dataset):
             raise FileNotFoundError(
                 f"Dataset directory not found: {self.root}. "
                 "Pass --data-dir pointing to the folder containing class subdirectories "
-                "(e.g. /kaggle/input/neurological-disorders-mri-dataset-for-xai/data).",
+                f"(e.g. {DEFAULT_KAGGLE_DATA_DIR}).",
             )
 
         self.classes = sorted(
@@ -151,7 +195,7 @@ def get_dataloaders(
     config: Config,
     roi_fn: Callable[[Image.Image], Image.Image] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader, list[str]]:
-    data_dir = resolve_data_dir(config)
+    data_dir = ensure_dataset_available(config)
     image_size = config.dataset.image_size
     use_roi = roi_fn if config.sam.enabled else None
     expected_classes = config.get_class_names()

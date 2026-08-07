@@ -10,9 +10,14 @@ from PIL import Image
 
 from neuro_mri_xai.config import Config, DatasetConfig
 from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
-from neuro_mri_xai.data.dataset import MRIDataset, resolve_data_dir, stratified_split_indices
+from neuro_mri_xai.data.dataset import (
+    MRIDataset,
+    ensure_dataset_available,
+    resolve_data_dir,
+    stratified_split_indices,
+)
 from neuro_mri_xai.data.transforms import get_transforms
-from neuro_mri_xai.utils.paths import resolve_imagefolder_root
+from neuro_mri_xai.utils.paths import resolve_dataset_root, resolve_imagefolder_root
 
 
 def _make_fake_dataset(root: Path, n_per_class: int = 10) -> None:
@@ -57,6 +62,34 @@ def test_resolve_data_dir_navigates_data_subfolder(tmp_path: Path) -> None:
     _make_fake_dataset(inner, n_per_class=1)
     cfg = Config(dataset=DatasetConfig(data_dir=tmp_path / "bundle"))
     assert resolve_data_dir(cfg) == inner.resolve()
+
+
+def test_resolve_dataset_root_prefers_data_subfolder(tmp_path: Path) -> None:
+    inner = tmp_path / "mount" / "data"
+    _make_fake_dataset(inner, n_per_class=1)
+    outer = tmp_path / "mount"
+    assert resolve_dataset_root(outer) == inner.resolve()
+
+
+def test_resolve_dataset_root_flat_class_layout(tmp_path: Path) -> None:
+    outer = tmp_path / "mount"
+    _make_fake_dataset(outer, n_per_class=1)
+    assert resolve_dataset_root(outer) == outer.resolve()
+
+
+def test_ensure_dataset_available_updates_config(tmp_path: Path) -> None:
+    inner = tmp_path / "bundle" / "data"
+    _make_fake_dataset(inner, n_per_class=1)
+    cfg = Config(dataset=DatasetConfig(data_dir=tmp_path / "bundle"))
+    resolved = ensure_dataset_available(cfg)
+    assert resolved == inner.resolve()
+    assert cfg.dataset.data_dir == inner.resolve()
+
+
+def test_ensure_dataset_available_missing_raises(tmp_path: Path) -> None:
+    cfg = Config(dataset=DatasetConfig(data_dir=tmp_path / "missing"))
+    with pytest.raises(FileNotFoundError, match="Dataset directory not found"):
+        ensure_dataset_available(cfg)
 
 
 def test_stratified_split_sizes() -> None:

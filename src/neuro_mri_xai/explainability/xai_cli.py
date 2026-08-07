@@ -28,6 +28,8 @@ def run_xai(
     data_dir: str | None = None,
 ) -> dict:
     config = load_config(config_path, data_dir=data_dir)
+    if data_dir:
+        print(f"Using dataset: {config.dataset.data_dir}")
     out = ensure_dir(output_dir or config.explainability.figures_dir)
     model, class_names = load_checkpoint_model(checkpoint_path, config)
     result = explain_sample(model, image_path, config, class_names, out)

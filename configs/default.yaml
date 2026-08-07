@@ -3,6 +3,7 @@ dataset:
   kagglehub_handle: "engrsakib02/neurological-disorders-mri-dataset-for-xai"
   kaggle_dataset: "engrsakib02/neurological-disorders-mri-dataset-for-xai"
   kaggle_data_subdir: "data"
+  data_dir: "/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data"
   gdrive_path: "/content/drive/MyDrive/neuro-mri-data/data"
   val_split: 0.1
   test_split: 0.1

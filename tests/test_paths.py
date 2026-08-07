@@ -15,6 +15,7 @@ from neuro_mri_xai.utils.paths import (
     get_data_root,
     get_project_root,
     resolve_imagefolder_root,
+    resolve_kaggle_dataset_root,
     resolve_path,
 )
 
@@ -73,3 +74,14 @@ def test_resolve_imagefolder_root_nested(tmp_path: Path) -> None:
     (inner / "img.jpg").write_bytes(b"x")
     resolved = resolve_imagefolder_root(tmp_path / "bundle")
     assert resolved == (tmp_path / "bundle" / "data").resolve()
+
+
+def test_resolve_kaggle_dataset_root_from_fixture(tmp_path: Path) -> None:
+    mount = tmp_path / "datasets" / "engrsakib02" / "neurological-disorders-mri-dataset-for-xai"
+    data_dir = mount / "data"
+    for cls in EXPECTED_CLASS_NAMES:
+        cls_dir = data_dir / cls
+        cls_dir.mkdir(parents=True)
+        (cls_dir / "img.jpg").write_bytes(b"x")
+    resolved = resolve_kaggle_dataset_root(mount)
+    assert resolved == data_dir.resolve()

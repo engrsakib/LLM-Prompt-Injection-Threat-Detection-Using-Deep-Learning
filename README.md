@@ -92,22 +92,23 @@ flowchart LR
 
 **Primary:** [Neurological Disorders MRI Dataset for XAI](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai)
 
-**Layout (ImageFolder root = `data/` subfolder):**
+**Layout (ImageFolder root = `data/` subfolder, or flat class folders under mount root):**
 
 ```
-/kaggle/input/neurological-disorders-mri-dataset-for-xai/
-└── data/
-    ├── AD_MildDemented/
-    ├── AD_ModerateDemented/
-    ├── AD_VeryMildDemented/
-    ├── BT_glioma/
-    ├── BT_meningioma/
-    ├── BT_pituitary/
-    ├── MS/
-    └── Normal/
+/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/
+├── data/                              # preferred ImageFolder root
+│   ├── AD_MildDemented/
+│   ├── AD_ModerateDemented/
+│   ├── AD_VeryMildDemented/
+│   ├── BT_glioma/
+│   ├── BT_meningioma/
+│   ├── BT_pituitary/
+│   ├── MS/
+│   └── Normal/
+└── (or 8 class folders directly here)
 ```
 
-Pass either the outer dataset folder or the inner `data/` folder to `--data-dir`; the loader auto-navigates to the 8 class subdirectories.
+Pass the outer mount folder, the inner `data/` folder, or any path containing the 8 class subdirectories to `--data-dir`. The loader auto-resolves to the correct ImageFolder root.
 
 | Class | Description |
 |-------|-------------|
@@ -228,7 +229,7 @@ In the Kaggle notebook sidebar: **Add Input → search `neurological-disorders-m
 %cd /kaggle/working/Neurological-MRI-XAI-Pipeline
 ```
 
-### Cell 2 — Install dependencies (editable mode)
+### Cell 2 — Install dependencies
 
 ```python
 !pip install -q -r requirements.txt
@@ -236,16 +237,19 @@ In the Kaggle notebook sidebar: **Add Input → search `neurological-disorders-m
 !pip install -q git+https://github.com/facebookresearch/segment-anything.git
 ```
 
-### Cell 3 — Locate attached dataset path
+### Cell 3 — Set dataset path and environment
 
 ```python
 import os
 from pathlib import Path
 
-# Confirm the mounted input folder name (may vary slightly by Kaggle version)
-print("Kaggle inputs:", os.listdir("/kaggle/input"))
+# Verified Kaggle mount (auto-resolves data/ subfolder or flat class layout)
+DATA_DIR = "/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data"
 
-DATA_DIR = "/kaggle/input/neurological-disorders-mri-dataset-for-xai/data"
+print("Kaggle inputs:", os.listdir("/kaggle/input"))
+assert Path(DATA_DIR).exists() or Path(DATA_DIR).parent.exists(), (
+    "Attach engrsakib02/neurological-disorders-mri-dataset-for-xai via Add Input"
+)
 
 os.environ["NEURO_MRI_PROJECT_ROOT"] = "/kaggle/working/Neurological-MRI-XAI-Pipeline"
 os.environ["NEURO_MRI_SAM_ENABLED"] = "false"
