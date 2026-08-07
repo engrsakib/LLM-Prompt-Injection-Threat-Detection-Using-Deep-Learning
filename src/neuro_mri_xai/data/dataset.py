@@ -5,7 +5,7 @@
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 
-"""Dataset loading, transforms, and stratified splits."""
+"""PyTorch ImageFolder wrapper with stratified 80/10/10 splits."""
 
 from __future__ import annotations
 
@@ -16,28 +16,13 @@ import torch
 from PIL import Image
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, Subset
-from torchvision import transforms
 
 from neuro_mri_xai.config import Config
-
-IMAGENET_MEAN = (0.485, 0.456, 0.406)
-IMAGENET_STD = (0.229, 0.224, 0.225)
-
-
-def get_transforms(image_size: int, train: bool = False) -> transforms.Compose:
-    if train:
-        return transforms.Compose([
-            transforms.Resize((image_size, image_size)),
-            transforms.RandomRotation(15),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-        ])
-    return transforms.Compose([
-        transforms.Resize((image_size, image_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-    ])
+from neuro_mri_xai.data.transforms import (
+    get_test_transforms,
+    get_train_transforms,
+    get_val_transforms,
+)
 
 
 class MRIDataset(Dataset):
@@ -46,9 +31,9 @@ class MRIDataset(Dataset):
     def __init__(
         self,
         root: str | Path,
-        transform: transforms.Compose | None = None,
+        transform: Callable | None = None,
         roi_fn: Callable[[Image.Image], Image.Image] | None = None,
-    ):
+    ) -> None:
         self.root = Path(root)
         self.transform = transform
         self.roi_fn = roi_fn
@@ -88,12 +73,13 @@ class MRIDataset(Dataset):
         return image, label
 
 
-def _stratified_split_indices(
+def stratified_split_indices(
     labels: list[int],
     val_split: float,
     test_split: float,
     seed: int,
 ) -> tuple[list[int], list[int], list[int]]:
+    """Split indices into train/val/test with stratification (default 80/10/10)."""
     indices = list(range(len(labels)))
     train_val_idx, test_idx = train_test_split(
         indices, test_size=test_split, stratify=labels, random_state=seed,
@@ -112,15 +98,13 @@ def get_dataloaders(
 ) -> tuple[DataLoader, DataLoader, DataLoader, list[str]]:
     data_dir = config.dataset.data_dir
     image_size = config.dataset.image_size
-    batch_size = config.dataset.batch_size
-    num_workers = config.dataset.num_workers
     use_roi = roi_fn if config.sam.enabled else None
 
     base_dataset = MRIDataset(root=data_dir, transform=None, roi_fn=use_roi)
     class_names = base_dataset.classes
     labels = [label for _, label in base_dataset.samples]
 
-    train_idx, val_idx, test_idx = _stratified_split_indices(
+    train_idx, val_idx, test_idx = stratified_split_indices(
         labels,
         val_split=config.dataset.val_split,
         test_split=config.dataset.test_split,
@@ -128,24 +112,24 @@ def get_dataloaders(
     )
 
     train_ds = Subset(
-        MRIDataset(data_dir, get_transforms(image_size, train=True), roi_fn=use_roi),
+        MRIDataset(data_dir, get_train_transforms(image_size), roi_fn=use_roi),
         train_idx,
     )
     val_ds = Subset(
-        MRIDataset(data_dir, get_transforms(image_size, train=False), roi_fn=use_roi),
+        MRIDataset(data_dir, get_val_transforms(image_size), roi_fn=use_roi),
         val_idx,
     )
     test_ds = Subset(
-        MRIDataset(data_dir, get_transforms(image_size, train=False), roi_fn=use_roi),
+        MRIDataset(data_dir, get_test_transforms(image_size), roi_fn=use_roi),
         test_idx,
     )
 
     loader_kwargs: dict = {
-        "batch_size": batch_size,
-        "num_workers": num_workers,
+        "batch_size": config.dataset.batch_size,
+        "num_workers": config.dataset.num_workers,
         "pin_memory": torch.cuda.is_available(),
     }
-    if num_workers > 0:
+    if config.dataset.num_workers > 0:
         loader_kwargs["persistent_workers"] = True
 
     train_loader = DataLoader(train_ds, shuffle=True, **loader_kwargs)
