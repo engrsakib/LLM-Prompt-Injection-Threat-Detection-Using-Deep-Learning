@@ -1,3 +1,10 @@
+# Copyright (C) 2026 Md. Nazmus Sakib
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
 """HTML diagnostic reports combining classification, XAI, and Florence-2."""
 
 from __future__ import annotations
@@ -10,7 +17,8 @@ from pathlib import Path
 from PIL import Image
 
 from neuro_mri_xai.config import load_config
-from neuro_mri_xai.explainability import explain_sample, load_checkpoint_model
+from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
+from neuro_mri_xai.explainability.pipeline import explain_sample
 from neuro_mri_xai.models.florence_reporter import generate_diagnostic_text, unload_florence
 from neuro_mri_xai.models.sam_roi import unload_sam
 from neuro_mri_xai.utils.paths import ensure_dir
@@ -76,7 +84,9 @@ def generate_report(
     pil_image = Image.open(image_path).convert("RGB")
     if config.florence.enabled:
         try:
-            diagnostic_text = generate_diagnostic_text(pil_image, xai["prediction"], xai["confidence"], config)
+            diagnostic_text = generate_diagnostic_text(
+                pil_image, xai["prediction"], xai["confidence"], config,
+            )
         finally:
             unload_florence()
     else:
@@ -86,8 +96,11 @@ def generate_report(
     report_path = output_dir / f"report_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.html"
     report_path.write_text(build_html_report(
         image_path, xai["prediction"], xai["confidence"], diagnostic_text,
-        {"gradcam": xai.get("gradcam_path"), "attention_saliency": xai.get("attention_path"),
-         "sam_constrained_overlay": xai.get("sam_overlay_path")},
+        {
+            "gradcam": xai.get("gradcam_path"),
+            "attention_saliency": xai.get("attention_path"),
+            "sam_constrained_overlay": xai.get("sam_overlay_path"),
+        },
     ), encoding="utf-8")
     print(f"Report saved to {report_path}")
     return report_path

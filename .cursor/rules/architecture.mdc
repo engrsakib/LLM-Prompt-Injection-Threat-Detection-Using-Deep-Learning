@@ -7,11 +7,11 @@ alwaysApply: true
 
 - Keep the project **modular**, **production-ready**, and **pip-installable** (`pip install -e .`).
 - Separate concerns into dedicated modules — do not merge unrelated logic:
-  - `dataset.py` — data loading, splits, transforms
+  - `data/dataset.py` + `data/transforms.py` — loading, splits, augmentations
   - `models/` — Swin, LoRA, SAM, Florence-2 architectures
-  - `train.py` — training loops and checkpointing
-  - `evaluate.py` — metrics and baselines
-  - `explainability.py` — Grad-CAM, attention, SAM overlays
+  - `training/trainer.py` + `training/train_cli.py` — training loops and CLI
+  - `evaluation/metrics.py` + `evaluation/test_eval.py` — metrics and test evaluation
+  - `explainability/` — Grad-CAM, attention rollout, SAM overlay, XAI pipeline
   - `report.py` — HTML / NL diagnostic reports
   - `config.py` + `utils/paths.py` — configuration and path resolution
 - **No duplicate code.** Extract shared logic into `utils/` rather than copying cells or blocks.
@@ -23,5 +23,5 @@ alwaysApply: true
 model.fit(train_gen, epochs=20)
 
 # ✅ GOOD — shell/CLI entry point
-# python -m neuro_mri_xai.train --config configs/default.yaml
+# python -m neuro_mri_xai.training.train_cli --config configs/default.yaml
 ```

@@ -34,4 +34,4 @@ Every **new or modified** source file under `src/` and `scripts/` must start wit
 - Use **PyTorch + timm + Hugging Face (PEFT, transformers)** — no TensorFlow/Keras for new code.
 - Register models through `models/__init__.py` factory (`build_model(config)`).
 - Use `torch.cuda.amp` for mixed precision; lazy-load SAM and Florence-2 to manage VRAM.
-- Follow existing patterns in `swin_classifier.py`, `lora.py`, and `train.py` for consistency.
+- Follow existing patterns in `models/swin_classifier.py`, `models/lora.py`, and `training/trainer.py` for consistency.

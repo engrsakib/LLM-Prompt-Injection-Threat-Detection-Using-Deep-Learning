@@ -5,11 +5,10 @@
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 
-"""Training loop with AMP, checkpointing, and early stopping."""
+"""Training and validation loops with AMP, early stopping, and checkpointing."""
 
 from __future__ import annotations
 
-import argparse
 import csv
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,9 +18,10 @@ import torch.nn as nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.utils.data import DataLoader
 
-from neuro_mri_xai.config import Config, load_config
-from neuro_mri_xai.dataset import get_dataloaders
+from neuro_mri_xai.config import Config
+from neuro_mri_xai.data import get_dataloaders
 from neuro_mri_xai.models import build_model
 from neuro_mri_xai.models.lora import save_lora_adapter
 from neuro_mri_xai.models.sam_roi import make_roi_fn, unload_sam
@@ -41,7 +41,7 @@ class TrainerState:
 
 
 class Trainer:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config) -> None:
         self.config = config
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         set_seed(config.dataset.seed)
@@ -77,7 +77,7 @@ class Trainer:
             groups = [{"params": self.model.parameters(), "lr": cfg.lr}]
         return AdamW(groups, weight_decay=cfg.weight_decay)
 
-    def _run_epoch(self, loader, train: bool) -> tuple[float, float]:
+    def _run_epoch(self, loader: DataLoader, train: bool) -> tuple[float, float]:
         self.model.train(train)
         total_loss, correct, total = 0.0, 0, 0
         for images, labels in loader:
@@ -146,23 +146,5 @@ class Trainer:
                 print(f"Early stopping at epoch {epoch}")
                 break
 
-        curve_path = cfg.log_dir / "training_curves.png"
-        save_training_curves(self.state.history, curve_path)
+        save_training_curves(self.state.history, cfg.log_dir / "training_curves.png")
         return best_path
-
-
-def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Train Swin MRI classifier")
-    parser.add_argument("--config", default="configs/default.yaml")
-    parser.add_argument("--epochs", type=int, default=None)
-    args = parser.parse_args(argv)
-    config = load_config(args.config)
-    if args.epochs is not None:
-        config.training.epochs = args.epochs
-    trainer = Trainer(config)
-    best = trainer.train()
-    print(f"Best model: {best} (val_acc={trainer.state.best_val_acc:.4f})")
-
-
-if __name__ == "__main__":
-    main()
