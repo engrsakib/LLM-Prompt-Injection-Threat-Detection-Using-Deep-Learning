@@ -1,0 +1,27 @@
+from setuptools import find_packages, setup
+
+setup(
+    name="neuro-mri-xai",
+    version="0.1.0",
+    description="Neurological MRI classification with Swin, SAM, LoRA, and Florence-2 XAI",
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
+    python_requires=">=3.10",
+    install_requires=[
+        "torch>=2.1.0",
+        "torchvision>=0.16.0",
+        "timm>=0.9.12",
+        "transformers>=4.40.0",
+        "peft>=0.10.0",
+        "accelerate>=0.27.0",
+        "opencv-python-headless>=4.8.0",
+        "Pillow>=10.0.0",
+        "numpy>=1.24.0",
+        "scikit-learn>=1.3.0",
+        "matplotlib>=3.7.0",
+        "seaborn>=0.13.0",
+        "pyyaml>=6.0",
+        "kaggle>=1.6.0",
+        "einops>=0.7.0",
+    ],
+)

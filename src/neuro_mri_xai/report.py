@@ -1,0 +1,107 @@
+"""HTML diagnostic reports combining classification, XAI, and Florence-2."""
+
+from __future__ import annotations
+
+import argparse
+import base64
+from datetime import datetime, timezone
+from pathlib import Path
+
+from PIL import Image
+
+from neuro_mri_xai.config import load_config
+from neuro_mri_xai.explainability import explain_sample, load_checkpoint_model
+from neuro_mri_xai.models.florence_reporter import generate_diagnostic_text, unload_florence
+from neuro_mri_xai.models.sam_roi import unload_sam
+from neuro_mri_xai.utils.paths import ensure_dir
+
+
+def _img_to_base64(path: str | Path) -> str:
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")
+
+
+def build_html_report(
+    image_path: Path,
+    prediction: str,
+    confidence: float,
+    diagnostic_text: str,
+    figure_paths: dict[str, str | None],
+) -> str:
+    figures_html = ""
+    for label, path in figure_paths.items():
+        if path and Path(path).exists():
+            b64 = _img_to_base64(path)
+            figures_html += f'<div class="figure"><h3>{label.replace("_", " ").title()}</h3>'
+            figures_html += f'<img src="data:image/png;base64,{b64}" alt="{label}"/></div>'
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/>
+<title>MRI Diagnostic Report — {prediction}</title>
+<style>
+body {{ font-family: Georgia, serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }}
+h1 {{ color: #1a365d; }}
+.meta {{ background: #edf2f7; padding: 1rem; border-radius: 8px; }}
+.figure {{ margin: 1.5rem 0; text-align: center; }}
+.figure img {{ max-width: 100%; border: 1px solid #cbd5e0; border-radius: 4px; }}
+.disclaimer {{ color: #718096; font-size: 0.85rem; margin-top: 2rem; }}
+pre {{ white-space: pre-wrap; line-height: 1.6; }}
+</style></head><body>
+<h1>Neurological MRI Diagnostic Report</h1>
+<p>Generated: {ts}</p>
+<div class="meta">
+<p><strong>Source image:</strong> {image_path.name}</p>
+<p><strong>Predicted class:</strong> {prediction}</p>
+<p><strong>Confidence:</strong> {confidence:.1%}</p>
+</div>
+<h2>Clinical Summary</h2><pre>{diagnostic_text}</pre>
+<h2>Explainability Visualizations</h2>{figures_html}
+<p class="disclaimer">This report is AI-generated for research and interpretability purposes only.
+It is not a substitute for professional medical diagnosis.</p>
+</body></html>"""
+
+
+def generate_report(
+    checkpoint: str | Path,
+    image: str | Path,
+    config_path: str = "configs/default.yaml",
+    output_dir: str | Path | None = None,
+) -> Path:
+    config = load_config(config_path)
+    output_dir = ensure_dir(output_dir or config.report.output_dir)
+    image_path = Path(image)
+    model, class_names = load_checkpoint_model(checkpoint, config)
+    xai_dir = ensure_dir(output_dir / "xai_cache")
+    xai = explain_sample(model, image_path, config, class_names, xai_dir)
+    pil_image = Image.open(image_path).convert("RGB")
+    if config.florence.enabled:
+        try:
+            diagnostic_text = generate_diagnostic_text(pil_image, xai["prediction"], xai["confidence"], config)
+        finally:
+            unload_florence()
+    else:
+        diagnostic_text = f"Predicted: {xai['prediction']} ({xai['confidence']:.1%})"
+    if config.sam.enabled:
+        unload_sam()
+    report_path = output_dir / f"report_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.html"
+    report_path.write_text(build_html_report(
+        image_path, xai["prediction"], xai["confidence"], diagnostic_text,
+        {"gradcam": xai.get("gradcam_path"), "attention_saliency": xai.get("attention_path"),
+         "sam_constrained_overlay": xai.get("sam_overlay_path")},
+    ), encoding="utf-8")
+    print(f"Report saved to {report_path}")
+    return report_path
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Generate HTML diagnostic report")
+    parser.add_argument("--config", default="configs/default.yaml")
+    parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--image", required=True)
+    parser.add_argument("--output-dir", default=None)
+    args = parser.parse_args(argv)
+    generate_report(args.checkpoint, args.image, args.config, args.output_dir)
+
+
+if __name__ == "__main__":
+    main()

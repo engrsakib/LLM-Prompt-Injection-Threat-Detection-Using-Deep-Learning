@@ -1,0 +1,61 @@
+dataset:
+  source: "kaggle"
+  kaggle_dataset: "engrsakib02/neurological-disorders-mri-dataset-for-xai"
+  gdrive_path: "/content/drive/MyDrive/neuro-mri-data/data"
+  val_split: 0.1
+  test_split: 0.1
+  seed: 42
+  image_size: 224
+  batch_size: 16
+  num_workers: 2
+
+model:
+  backbone: "swin_base_patch4_window7_224"
+  num_classes: 8
+  use_lora: true
+  lora_r: 8
+  lora_alpha: 16
+  lora_target_modules: ["qkv", "proj"]
+  lora_dropout: 0.1
+
+sam:
+  enabled: true
+  checkpoint: "sam_vit_b_01ec64.pth"
+  model_type: "vit_b"
+  weights_dir: "weights"
+
+florence:
+  enabled: true
+  model_id: "microsoft/Florence-2-base"
+  use_lora: false
+
+training:
+  epochs: 20
+  lr: 1.0e-4
+  backbone_lr: 1.0e-5
+  weight_decay: 0.01
+  early_stopping_patience: 5
+  checkpoint_dir: "outputs/checkpoints"
+  log_dir: "outputs/logs"
+  use_amp: true
+
+evaluation:
+  figures_dir: "outputs/figures"
+  run_sklearn_baselines: true
+
+explainability:
+  figures_dir: "outputs/figures"
+  alpha: 0.4
+
+report:
+  output_dir: "outputs/reports"
+
+classes:
+  - AD_MildDemented
+  - AD_ModerateDemented
+  - AD_VeryMildDemented
+  - BT_glioma
+  - BT_meningioma
+  - BT_pituitary
+  - MS
+  - Normal
