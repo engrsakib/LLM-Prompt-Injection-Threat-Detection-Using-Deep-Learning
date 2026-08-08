@@ -9,13 +9,49 @@
 
 from __future__ import annotations
 
+import logging
+
 import torch
 from PIL import Image
 
 from neuro_mri_xai.config import Config
 
+logger = logging.getLogger(__name__)
+
 _florence_model = None
 _florence_processor = None
+
+
+def _load_florence_processor(model_id: str):
+    """Load Florence-2 processor with slow tokenizer for transformers compatibility."""
+    from transformers import AutoImageProcessor, AutoProcessor, AutoTokenizer
+
+    trust = {"trust_remote_code": True}
+    slow_tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, **trust)
+
+    # Prefer injecting slow tokenizer so remote Florence2Processor avoids fast-tokenizer APIs.
+    try:
+        return AutoProcessor.from_pretrained(model_id, tokenizer=slow_tokenizer, **trust)
+    except TypeError:
+        logger.debug("AutoProcessor.from_pretrained(tokenizer=...) unsupported; retrying use_fast=False")
+
+    try:
+        return AutoProcessor.from_pretrained(model_id, use_fast=False, **trust)
+    except AttributeError as exc:
+        logger.warning(
+            "AutoProcessor use_fast=False failed (%s); assembling Florence-2 processor manually",
+            exc,
+        )
+
+    image_processor = AutoImageProcessor.from_pretrained(model_id, **trust)
+    try:
+        from transformers.models.florence2.processing_florence2 import Florence2Processor
+    except ImportError as import_exc:
+        raise RuntimeError(
+            f"Failed to load Florence-2 processor for {model_id} with slow tokenizer"
+        ) from import_exc
+
+    return Florence2Processor(image_processor=image_processor, tokenizer=slow_tokenizer)
 
 
 def _load_florence(config: Config):
@@ -23,11 +59,11 @@ def _load_florence(config: Config):
     if _florence_model is not None:
         return _florence_model, _florence_processor
 
-    from transformers import AutoProcessor, Florence2ForConditionalGeneration
+    from transformers import Florence2ForConditionalGeneration
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
-    processor = AutoProcessor.from_pretrained(config.florence.model_id, trust_remote_code=True)
+    processor = _load_florence_processor(config.florence.model_id)
     model = Florence2ForConditionalGeneration.from_pretrained(
         config.florence.model_id,
         trust_remote_code=True,
@@ -86,6 +122,7 @@ def generate_diagnostic_text(
     config: Config,
 ) -> str:
     class_names = config.get_class_names()
+    class_context = ""
     if predicted_class in class_names:
         class_context = (
             f" (class index {class_names.index(predicted_class) + 1}/{len(class_names)})"
