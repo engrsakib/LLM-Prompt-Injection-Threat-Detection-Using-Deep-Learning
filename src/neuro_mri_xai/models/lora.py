@@ -69,6 +69,38 @@ def inject_lora_into_timm(model: nn.Module, config: Config) -> nn.Module:
     return peft_model
 
 
+def is_peft_model(model: nn.Module) -> bool:
+    """Return True when ``model`` is a top-level ``PeftModel`` wrapper."""
+    try:
+        from peft import PeftModel
+
+        return isinstance(model, PeftModel)
+    except ImportError:
+        return False
+
+
+def unwrap_peft_base(model: nn.Module) -> nn.Module:
+    """Return the raw base module suitable for ``PeftModel.from_pretrained``."""
+    if not is_peft_model(model):
+        return model
+
+    if hasattr(model, "get_base_model"):
+        base = model.get_base_model()
+        if base is not model and is_peft_model(base):
+            return unwrap_peft_base(base)
+        if hasattr(base, "model") and isinstance(base.model, nn.Module):
+            return base.model
+        return base
+
+    if hasattr(model, "base_model"):
+        base = model.base_model
+        if hasattr(base, "model") and isinstance(base.model, nn.Module):
+            return base.model
+        return base
+
+    return model
+
+
 def apply_lora(model: nn.Module, config: Config) -> nn.Module:
     return inject_lora_into_timm(model, config)
 
@@ -88,7 +120,14 @@ def load_lora_adapter(model: nn.Module, path: str | Path) -> nn.Module:
     if (path / "adapter_config.json").exists():
         from peft import PeftModel
 
-        return PeftModel.from_pretrained(model, path)
+        if is_peft_model(model):
+            if hasattr(model, "load_adapter"):
+                model.load_adapter(str(path), adapter_name="default")
+                return model
+            model = unwrap_peft_base(model)
+
+        return PeftModel.from_pretrained(model, str(path))
+
     weights_file = path / "adapter_weights.pt"
     if weights_file.exists():
         state = torch.load(weights_file, map_location="cpu", weights_only=False)

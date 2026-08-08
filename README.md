@@ -354,6 +354,7 @@ After download, resolve the data path:
 
 ```python
 from neuro_mri_xai.config import load_config
+
 cfg = load_config("configs/default.yaml")
 DATA_DIR = str(cfg.dataset.data_dir)
 print("Data dir:", DATA_DIR)
