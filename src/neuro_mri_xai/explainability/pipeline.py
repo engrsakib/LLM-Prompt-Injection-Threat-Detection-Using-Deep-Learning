@@ -103,6 +103,7 @@ def explain_sample(
     )
 
     sam_overlay_path: str | None = None
+    sam_mask_path: str | None = None
     mask_confidence = 0.0
     if config.sam.enabled:
         overlay, _mask, mask_confidence = render_sam_constrained_overlay(
@@ -119,6 +120,15 @@ def explain_sample(
         fig.savefig(sam_out, dpi=150, bbox_inches="tight")
         plt.close(fig)
         sam_overlay_path = str(sam_out)
+
+        sam_mask_path = str(output_dir / f"{image_path.stem}_sam_mask.png")
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.imshow(_mask, cmap="gray")
+        ax.set_title("SAM ROI Mask")
+        ax.axis("off")
+        plt.tight_layout()
+        fig.savefig(sam_mask_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
         if config.vram.sequential_models:
             unload_sam()
             empty_cuda_cache()
@@ -130,5 +140,6 @@ def explain_sample(
         "gradcam_path": str(gradcam_path),
         "attention_path": str(attention_path),
         "sam_overlay_path": sam_overlay_path,
+        "sam_mask_path": sam_mask_path,
         "mask_confidence": mask_confidence,
     }

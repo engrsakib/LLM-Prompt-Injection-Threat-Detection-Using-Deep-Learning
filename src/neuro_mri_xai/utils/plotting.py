@@ -43,11 +43,13 @@ def save_confusion_matrix(
     class_names: list[str],
     output_path: str | Path,
     title: str = "Confusion Matrix",
+    per_class_metrics: list[dict] | None = None,
 ) -> Path:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig_height = 10 if per_class_metrics else 8
+    fig, ax = plt.subplots(figsize=(12, fig_height))
     sns.heatmap(
         cm,
         annot=True,
@@ -60,6 +62,21 @@ def save_confusion_matrix(
     ax.set_title(title)
     ax.set_xlabel("Predicted")
     ax.set_ylabel("True")
+
+    if per_class_metrics:
+        metric_lines = [
+            f"{m['class']}: P={m['precision']:.2f} R={m['recall']:.2f} F1={m['f1']:.2f}"
+            for m in per_class_metrics
+        ]
+        fig.text(
+            0.01,
+            0.01,
+            "Per-class: " + " | ".join(metric_lines),
+            fontsize=7,
+            wrap=True,
+            verticalalignment="bottom",
+        )
+
     plt.tight_layout()
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)

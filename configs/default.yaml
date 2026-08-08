@@ -12,6 +12,9 @@ dataset:
   image_size: 224
   batch_size: 16
   num_workers: 2
+  split_strategy: "patient"
+  n_folds: 1
+  fold_index: 0
   class_names:
     - AD_MildDemented
     - AD_ModerateDemented
@@ -67,6 +70,18 @@ vram:
 evaluation:
   figures_dir: "outputs/figures"
   run_sklearn_baselines: true
+  export_batch_xai: false
+  xai_max_samples: 16
+  export_per_class_metrics: true
+
+ensemble:
+  enabled: false
+  backbones:
+    - "swin_base_patch4_window7_224"
+    - "convnext_base.fb_in22k_ft_in1k"
+    - "densenet121"
+  checkpoint_paths: []
+  weights: []
 
 explainability:
   figures_dir: "outputs/figures"

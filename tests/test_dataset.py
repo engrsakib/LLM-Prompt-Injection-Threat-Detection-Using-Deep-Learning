@@ -140,3 +140,17 @@ def test_compute_class_weights_inverse_frequency() -> None:
     assert weights[0] < weights[1]
     assert torch.isclose(weights[0], torch.tensor(6.0 / (2.0 * 4.0)))
     assert torch.isclose(weights[1], torch.tensor(6.0 / (2.0 * 2.0)))
+
+
+def test_compute_per_class_metrics() -> None:
+    import numpy as np
+
+    from neuro_mri_xai.evaluation.metrics import compute_per_class_metrics
+
+    y_true = np.array([0, 0, 1, 1])
+    y_pred = np.array([0, 1, 1, 1])
+    metrics = compute_per_class_metrics(y_true, y_pred, ["A", "B"])
+    assert len(metrics) == 2
+    assert metrics[0]["class"] == "A"
+    assert "precision" in metrics[0]
+    assert metrics[1]["recall"] == 1.0

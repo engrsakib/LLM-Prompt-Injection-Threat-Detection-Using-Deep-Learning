@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from neuro_mri_xai.models.classifier import get_gradcam_target_layer
 from neuro_mri_xai.models.swin_classifier import get_swin_target_layers
 
 
@@ -39,7 +40,10 @@ def compute_gradcam(
     model.eval()
     layer = target_layer
     if layer is None:
-        layer, _ = get_swin_target_layers(model)
+        try:
+            layer, _ = get_swin_target_layers(model)
+        except ValueError:
+            layer = get_gradcam_target_layer(model)
 
     hook = _GradCAMHook()
     handle_f = layer.register_forward_hook(hook.forward_hook)

@@ -22,7 +22,8 @@ from neuro_mri_xai.data.dataset import (
     get_train_labels,
 )
 from neuro_mri_xai.models import build_model
-from neuro_mri_xai.models.swin_classifier import apply_swin_partial_freeze, log_trainable_params
+from neuro_mri_xai.models.classifier import apply_partial_freeze
+from neuro_mri_xai.models.swin_classifier import log_trainable_params
 from neuro_mri_xai.training.trainer import Trainer
 from neuro_mri_xai.utils.cli import add_data_dir_argument
 from neuro_mri_xai.utils.seed import set_seed
@@ -51,7 +52,7 @@ def run_training(
     model = build_model(config, pretrained=True)
 
     if config.training.freeze_early_backbone:
-        apply_swin_partial_freeze(model)
+        apply_partial_freeze(model)
         log_trainable_params(model, label="Partial fine-tune")
 
     class_weights = None

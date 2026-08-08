@@ -21,6 +21,7 @@ from sklearn.metrics import (
     classification_report,
     confusion_matrix,
     f1_score,
+    precision_recall_fscore_support,
     precision_score,
     recall_score,
     roc_auc_score,
@@ -47,11 +48,38 @@ def collect_predictions(
     all_probs: list[list[float]] = []
     for images, labels in loader:
         images = images.to(device)
-        probs = F.softmax(model(images), dim=1)
+        if hasattr(model, "predict_logits"):
+            probs = torch.exp(model.predict_logits(images))
+        else:
+            probs = F.softmax(model(images), dim=1)
         all_labels.extend(labels.numpy().tolist())
         all_preds.extend(probs.argmax(dim=1).cpu().numpy().tolist())
         all_probs.extend(probs.cpu().numpy().tolist())
     return np.array(all_labels), np.array(all_preds), np.array(all_probs)
+
+
+def compute_per_class_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    class_names: list[str],
+) -> list[dict[str, float | str]]:
+    """Per-class precision, recall, F1, and support."""
+    precision, recall, f1, support = precision_recall_fscore_support(
+        y_true,
+        y_pred,
+        labels=list(range(len(class_names))),
+        zero_division=0,
+    )
+    return [
+        {
+            "class": class_names[i],
+            "precision": float(precision[i]),
+            "recall": float(recall[i]),
+            "f1": float(f1[i]),
+            "support": int(support[i]),
+        }
+        for i in range(len(class_names))
+    ]
 
 
 def compute_metrics(
@@ -65,6 +93,7 @@ def compute_metrics(
         "precision_macro": float(precision_score(y_true, y_pred, average="macro", zero_division=0)),
         "recall_macro": float(recall_score(y_true, y_pred, average="macro", zero_division=0)),
         "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
+        "per_class": compute_per_class_metrics(y_true, y_pred, class_names),
         "classification_report": classification_report(
             y_true,
             y_pred,

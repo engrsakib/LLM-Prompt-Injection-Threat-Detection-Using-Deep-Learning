@@ -12,15 +12,16 @@ from __future__ import annotations
 import torch.nn as nn
 
 from neuro_mri_xai.config import Config
+from neuro_mri_xai.models.classifier import build_timm_classifier
 from neuro_mri_xai.models.lora import apply_lora, get_trainable_param_count
-from neuro_mri_xai.models.swin_classifier import build_swin_classifier
 
 
-def build_model(config: Config, pretrained: bool = True) -> nn.Module:
-    if config.model.backbone.startswith("swin"):
-        model = build_swin_classifier(config, pretrained=pretrained)
-    else:
-        model = build_swin_classifier(config, pretrained=pretrained)
+def build_model(
+    config: Config,
+    pretrained: bool = True,
+    backbone: str | None = None,
+) -> nn.Module:
+    model = build_timm_classifier(config, backbone=backbone, pretrained=pretrained)
 
     if config.model.use_lora:
         model = apply_lora(model, config)

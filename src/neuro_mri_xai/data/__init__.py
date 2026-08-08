@@ -17,6 +17,7 @@ from neuro_mri_xai.data.dataset import (
     resolve_data_dir,
     stratified_split_indices,
 )
+from neuro_mri_xai.data.splits import extract_group_id
 from neuro_mri_xai.data.transforms import (
     get_test_transforms,
     get_train_transforms,
@@ -38,4 +39,5 @@ __all__ = [
     "get_val_transforms",
     "get_test_transforms",
     "get_transforms",
+    "extract_group_id",
 ]

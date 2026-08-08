@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING
 
 import torch
 from PIL import Image
-from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset, Subset
 
 from neuro_mri_xai.data.constants import (
@@ -25,6 +24,8 @@ from neuro_mri_xai.data.constants import (
     EXPECTED_CLASS_NAMES,
     NUM_CLASSES,
 )
+from neuro_mri_xai.data.splits import build_group_ids
+from neuro_mri_xai.data.splits import stratified_split_indices as resolve_split_indices
 from neuro_mri_xai.data.transforms import (
     get_test_transforms,
     get_train_transforms,
@@ -202,24 +203,22 @@ def stratified_split_indices(
     val_split: float,
     test_split: float,
     seed: int,
+    groups: list[str] | None = None,
+    split_strategy: str = "image",
+    n_folds: int = 5,
+    fold_index: int = 0,
 ) -> tuple[list[int], list[int], list[int]]:
-    """Split indices into train/val/test with stratification (default 80/10/10)."""
-    indices = list(range(len(labels)))
-    train_val_idx, test_idx = train_test_split(
-        indices,
-        test_size=test_split,
-        stratify=labels,
-        random_state=seed,
+    """Split indices into train/val/test (image- or patient-level stratified)."""
+    return resolve_split_indices(
+        labels,
+        val_split,
+        test_split,
+        seed,
+        groups=groups,
+        split_strategy=split_strategy,
+        n_folds=n_folds,
+        fold_index=fold_index,
     )
-    val_ratio = val_split / (1.0 - test_split)
-    train_labels = [labels[i] for i in train_val_idx]
-    train_idx, val_idx = train_test_split(
-        train_val_idx,
-        test_size=val_ratio,
-        stratify=train_labels,
-        random_state=seed,
-    )
-    return train_idx, val_idx, test_idx
 
 
 def compute_class_weights(
@@ -250,13 +249,37 @@ def get_train_labels(config: Config) -> list[int]:
         expected_classes=expected_classes,
     )
     labels = [label for _, label in base_dataset.samples]
+    class_names = base_dataset.classes
     train_idx, _, _ = stratified_split_indices(
         labels,
         val_split=config.dataset.val_split,
         test_split=config.dataset.test_split,
         seed=config.dataset.seed,
+        groups=build_group_ids(base_dataset.samples, class_names),
+        split_strategy=config.dataset.split_strategy,
+        n_folds=config.dataset.n_folds,
+        fold_index=config.dataset.fold_index,
     )
     return [labels[i] for i in train_idx]
+
+
+def _resolve_split_indices(
+    labels: list[int],
+    samples: list[tuple[Path, int]],
+    class_names: list[str],
+    config: Config,
+) -> tuple[list[int], list[int], list[int]]:
+    groups = build_group_ids(samples, class_names)
+    return stratified_split_indices(
+        labels,
+        val_split=config.dataset.val_split,
+        test_split=config.dataset.test_split,
+        seed=config.dataset.seed,
+        groups=groups,
+        split_strategy=config.dataset.split_strategy,
+        n_folds=config.dataset.n_folds,
+        fold_index=config.dataset.fold_index,
+    )
 
 
 def get_dataloaders(
@@ -277,11 +300,11 @@ def get_dataloaders(
     class_names = base_dataset.classes
     labels = [label for _, label in base_dataset.samples]
 
-    train_idx, val_idx, test_idx = stratified_split_indices(
+    train_idx, val_idx, test_idx = _resolve_split_indices(
         labels,
-        val_split=config.dataset.val_split,
-        test_split=config.dataset.test_split,
-        seed=config.dataset.seed,
+        base_dataset.samples,
+        class_names,
+        config,
     )
 
     train_ds = Subset(

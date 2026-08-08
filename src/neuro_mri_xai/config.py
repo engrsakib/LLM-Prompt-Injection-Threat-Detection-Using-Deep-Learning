@@ -46,6 +46,9 @@ class DatasetConfig:
     num_workers: int = 2
     data_dir: Path = field(default_factory=lambda: Path("data"))
     class_names: list[str] = field(default_factory=lambda: list(EXPECTED_CLASS_NAMES))
+    split_strategy: str = "patient"
+    n_folds: int = 1
+    fold_index: int = 0
 
 
 @dataclass
@@ -93,9 +96,26 @@ class TrainingConfig:
 
 
 @dataclass
+class EnsembleConfig:
+    enabled: bool = False
+    backbones: list[str] = field(
+        default_factory=lambda: [
+            "swin_base_patch4_window7_224",
+            "convnext_base.fb_in22k_ft_in1k",
+            "densenet121",
+        ]
+    )
+    checkpoint_paths: list[str] = field(default_factory=list)
+    weights: list[float] = field(default_factory=list)
+
+
+@dataclass
 class EvaluationConfig:
     figures_dir: Path = field(default_factory=lambda: Path("outputs/figures"))
     run_sklearn_baselines: bool = True
+    export_batch_xai: bool = False
+    xai_max_samples: int = 16
+    export_per_class_metrics: bool = True
 
 
 @dataclass
@@ -124,6 +144,7 @@ class Config:
     sam: SamConfig = field(default_factory=SamConfig)
     florence: FlorenceConfig = field(default_factory=FlorenceConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
+    ensemble: EnsembleConfig = field(default_factory=EnsembleConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     explainability: ExplainabilityConfig = field(default_factory=ExplainabilityConfig)
     report: ReportConfig = field(default_factory=ReportConfig)
@@ -166,6 +187,7 @@ def load_config(
     cfg.sam = _merge_dataclass(SamConfig, raw.get("sam", {}))
     cfg.florence = _merge_dataclass(FlorenceConfig, raw.get("florence", {}))
     cfg.training = _merge_dataclass(TrainingConfig, raw.get("training", {}))
+    cfg.ensemble = _merge_dataclass(EnsembleConfig, raw.get("ensemble", {}))
     cfg.evaluation = _merge_dataclass(EvaluationConfig, raw.get("evaluation", {}))
     cfg.explainability = _merge_dataclass(ExplainabilityConfig, raw.get("explainability", {}))
     cfg.report = _merge_dataclass(ReportConfig, raw.get("report", {}))
