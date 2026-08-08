@@ -16,8 +16,13 @@ import torch
 from neuro_mri_xai.config import load_config
 from neuro_mri_xai.data import get_dataloaders
 from neuro_mri_xai.data.constants import NUM_CLASSES
-from neuro_mri_xai.data.dataset import ensure_dataset_available
+from neuro_mri_xai.data.dataset import (
+    compute_class_weights,
+    ensure_dataset_available,
+    get_train_labels,
+)
 from neuro_mri_xai.models import build_model
+from neuro_mri_xai.models.swin_classifier import apply_swin_partial_freeze, log_trainable_params
 from neuro_mri_xai.training.trainer import Trainer
 from neuro_mri_xai.utils.cli import add_data_dir_argument
 from neuro_mri_xai.utils.seed import set_seed
@@ -44,7 +49,24 @@ def run_training(
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model(config, pretrained=True)
-    trainer = Trainer(model, config, class_names, device=device)
+
+    if config.training.freeze_early_backbone:
+        apply_swin_partial_freeze(model)
+        log_trainable_params(model, label="Partial fine-tune")
+
+    class_weights = None
+    if config.training.use_class_weights:
+        train_labels = get_train_labels(config)
+        class_weights = compute_class_weights(train_labels, NUM_CLASSES, device=device)
+        print(f"Using class-weighted CrossEntropyLoss ({NUM_CLASSES} classes)")
+
+    trainer = Trainer(
+        model,
+        config,
+        class_names,
+        device=device,
+        class_weights=class_weights,
+    )
     ckpt_path = trainer.fit(
         train_loader,
         val_loader,

@@ -88,6 +88,8 @@ class TrainingConfig:
     log_dir: Path = field(default_factory=lambda: Path("outputs/logs"))
     use_amp: bool = True
     use_cosine_scheduler: bool = True
+    freeze_early_backbone: bool = True
+    use_class_weights: bool = True
 
 
 @dataclass

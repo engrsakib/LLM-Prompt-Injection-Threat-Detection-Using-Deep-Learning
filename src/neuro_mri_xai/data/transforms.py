@@ -19,8 +19,9 @@ def get_train_transforms(image_size: int) -> transforms.Compose:
     return transforms.Compose(
         [
             transforms.Resize((image_size, image_size)),
-            transforms.RandomRotation(15),
-            transforms.RandomHorizontalFlip(),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomRotation(degrees=15),
+            transforms.ColorJitter(brightness=0.1, contrast=0.1),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
         ]

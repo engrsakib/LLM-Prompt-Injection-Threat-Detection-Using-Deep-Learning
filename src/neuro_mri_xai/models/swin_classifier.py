@@ -79,3 +79,34 @@ def get_backbone_and_head_params(model: nn.Module) -> tuple[list, list]:
         elif is_lora or (not is_head):
             backbone_params.append(param)
     return backbone_params, head_params
+
+
+def apply_swin_partial_freeze(model: nn.Module) -> tuple[int, int]:
+    """Freeze all params; unfreeze last Swin stage (layers[-1]) and classification head."""
+    backbone = unwrap_model(model)
+
+    for param in model.parameters():
+        param.requires_grad = False
+
+    last_stage = backbone.layers[-1]
+    head = backbone.head
+
+    for param in last_stage.parameters():
+        param.requires_grad = True
+    for param in head.parameters():
+        param.requires_grad = True
+
+    return get_trainable_param_count(model)
+
+
+def get_trainable_param_count(model: nn.Module) -> tuple[int, int]:
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total = sum(p.numel() for p in model.parameters())
+    return trainable, total
+
+
+def log_trainable_params(model: nn.Module, label: str = "model") -> tuple[int, int]:
+    trainable, total = get_trainable_param_count(model)
+    ratio = 100.0 * trainable / max(total, 1)
+    print(f"{label}: {trainable:,} / {total:,} trainable parameters ({ratio:.2f}%)")
+    return trainable, total

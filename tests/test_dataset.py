@@ -13,6 +13,7 @@ from neuro_mri_xai.config import Config, DatasetConfig
 from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
 from neuro_mri_xai.data.dataset import (
     MRIDataset,
+    compute_class_weights,
     ensure_dataset_available,
     resolve_data_dir,
     stratified_split_indices,
@@ -128,5 +129,14 @@ def test_stratified_split_16400() -> None:
 def test_get_transforms_train_vs_eval() -> None:
     assert (
         len(get_transforms(224, train=True).transforms)
-        == len(get_transforms(224, train=False).transforms) + 2
+        == len(get_transforms(224, train=False).transforms) + 3
     )
+
+
+def test_compute_class_weights_inverse_frequency() -> None:
+    labels = [0, 0, 0, 0, 1, 1]
+    weights = compute_class_weights(labels, num_classes=2)
+    assert weights.shape == (2,)
+    assert weights[0] < weights[1]
+    assert torch.isclose(weights[0], torch.tensor(6.0 / (2.0 * 4.0)))
+    assert torch.isclose(weights[1], torch.tensor(6.0 / (2.0 * 2.0)))

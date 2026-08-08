@@ -104,3 +104,46 @@ def test_load_florence_processor_falls_back_to_use_fast_false() -> None:
     assert mock_processor.call_count == 2
     mock_processor.assert_any_call(model_id, use_fast=False, trust_remote_code=True)
     assert result is processor
+
+
+def test_normalize_florence_task_defaults_and_vqa() -> None:
+    assert fr._normalize_florence_task("") == fr.DEFAULT_FLORENCE_CAPTION_TASK
+    assert fr._normalize_florence_task("  ") == fr.DEFAULT_FLORENCE_CAPTION_TASK
+    assert fr._normalize_florence_task("<CAPTION>") == "<CAPTION>"
+    assert fr._normalize_florence_task("<VQA>What is shown?") == "<VQA>What is shown?"
+
+
+def test_count_florence_image_tokens() -> None:
+    processor = SimpleNamespace(image_token_id=42)
+    input_ids = torch.tensor([[1, 42, 42, 3, 42]])
+    assert fr._count_florence_image_tokens(processor, input_ids) == 3
+
+
+def test_validate_florence_inputs_raises_on_zero_image_tokens() -> None:
+    processor = SimpleNamespace(image_token_id=99)
+    inputs = {
+        "input_ids": torch.tensor([[1, 2, 3]]),
+        "pixel_values": torch.randn(1, 3, 224, 224),
+    }
+    with pytest.raises(ValueError, match="0 image tokens"):
+        fr._validate_florence_inputs(inputs, processor)
+
+
+def test_build_florence_processor_inputs_with_stub_processor() -> None:
+    token_id = 7
+    image = mock.Mock()
+
+    class StubProcessor:
+        image_token_id = token_id
+
+        def __call__(self, *, text, images, return_tensors, truncation):
+            assert truncation is False
+            return {
+                "input_ids": torch.tensor([[token_id, token_id, 1, 2]]),
+                "pixel_values": torch.randn(1, 3, 224, 224),
+            }
+
+    processor = StubProcessor()
+    inputs = fr._build_florence_processor_inputs(processor, "<CAPTION>", image)
+    assert fr._count_florence_image_tokens(processor, inputs["input_ids"]) > 0
+    assert inputs["pixel_values"].shape == (1, 3, 224, 224)

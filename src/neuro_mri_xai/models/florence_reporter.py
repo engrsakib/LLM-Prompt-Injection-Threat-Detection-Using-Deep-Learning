@@ -18,9 +18,192 @@ from neuro_mri_xai.config import Config
 
 logger = logging.getLogger(__name__)
 
+FLORENCE_CAPTION_TASKS = frozenset(
+    {"<CAPTION>", "<DETAILED_CAPTION>", "<MORE_DETAILED_CAPTION>"}
+)
+FLORENCE_VQA_PREFIX = "<VQA>"
+DEFAULT_FLORENCE_CAPTION_TASK = "<MORE_DETAILED_CAPTION>"
+
 _florence_model = None
 _florence_processor = None
 _tokenizer_compat_patched = False
+
+
+def _normalize_florence_task(task: str) -> str:
+    """Ensure a valid Florence-2 task prompt string."""
+    normalized = (task or "").strip()
+    if not normalized:
+        logger.warning("Empty Florence task prompt; using %s", DEFAULT_FLORENCE_CAPTION_TASK)
+        return DEFAULT_FLORENCE_CAPTION_TASK
+
+    if normalized.startswith(FLORENCE_VQA_PREFIX):
+        return normalized
+
+    if normalized in FLORENCE_CAPTION_TASKS:
+        return normalized
+
+    if normalized.startswith("<") and normalized.endswith(">"):
+        return normalized
+
+    logger.warning(
+        "Unrecognized Florence task %r; using %s",
+        normalized,
+        DEFAULT_FLORENCE_CAPTION_TASK,
+    )
+    return DEFAULT_FLORENCE_CAPTION_TASK
+
+
+def _resolve_image_token_id(processor: object) -> int | None:
+    token_id = getattr(processor, "image_token_id", None)
+    if isinstance(token_id, int):
+        return token_id
+
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        return None
+
+    token_id = getattr(tokenizer, "image_token_id", None)
+    if isinstance(token_id, int):
+        return token_id
+
+    image_token = getattr(processor, "image_token", None) or getattr(tokenizer, "image_token", None)
+    if isinstance(image_token, str):
+        try:
+            return int(tokenizer.convert_tokens_to_ids(image_token))
+        except Exception:
+            return None
+    return None
+
+
+def _count_florence_image_tokens(processor: object, input_ids: torch.Tensor) -> int:
+    """Count image placeholder tokens in tokenized input_ids."""
+    image_token_id = _resolve_image_token_id(processor)
+    if image_token_id is None:
+        return 0
+    return int((input_ids == image_token_id).sum().item())
+
+
+def _sync_florence_processor(processor: object, model: torch.nn.Module) -> None:
+    """Align processor image-token metadata with the loaded model."""
+    image_processor = getattr(processor, "image_processor", None)
+    image_seq_length = getattr(image_processor, "image_seq_length", None)
+    if image_seq_length is None:
+        image_seq_length = getattr(processor, "image_seq_length", None)
+
+    if image_seq_length is not None:
+        processor.image_seq_length = image_seq_length
+        if hasattr(processor, "num_image_tokens"):
+            processor.num_image_tokens = image_seq_length
+
+    model_config = getattr(model, "config", None)
+    if model_config is not None:
+        extra_tokens = getattr(model_config, "num_additional_image_tokens", None)
+        if extra_tokens is not None and hasattr(processor, "num_additional_image_tokens"):
+            processor.num_additional_image_tokens = int(extra_tokens)
+
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is not None:
+        image_token = getattr(tokenizer, "image_token", None)
+        if image_token is not None and not hasattr(processor, "image_token"):
+            processor.image_token = image_token
+
+        image_token_id = _resolve_image_token_id(processor)
+        if image_token_id is not None:
+            processor.image_token_id = image_token_id
+
+
+def _build_florence_processor_inputs(
+    processor: object,
+    task: str,
+    image: Image.Image,
+) -> dict[str, torch.Tensor]:
+    """Build processor inputs with valid task prompt and image placeholder tokens."""
+    normalized_task = _normalize_florence_task(task)
+
+    def _call_processor(text: str | list[str], images: Image.Image | list[Image.Image]) -> object:
+        return processor(
+            text=text,
+            images=images,
+            return_tensors="pt",
+            truncation=False,
+        )
+
+    raw_inputs = _call_processor(normalized_task, image)
+    input_ids = raw_inputs.get("input_ids")
+    if input_ids is not None and _count_florence_image_tokens(processor, input_ids) > 0:
+        return dict(raw_inputs)
+
+    logger.warning(
+        "Florence processor returned 0 image tokens for task %r; retrying list form",
+        normalized_task,
+    )
+    raw_inputs = _call_processor([normalized_task], [image])
+    input_ids = raw_inputs.get("input_ids")
+    if input_ids is not None and _count_florence_image_tokens(processor, input_ids) > 0:
+        return dict(raw_inputs)
+
+    construct_prompts = getattr(processor, "_construct_prompts", None)
+    tokenizer = getattr(processor, "tokenizer", None)
+    image_token = getattr(processor, "image_token", None)
+    num_image_tokens = getattr(processor, "num_image_tokens", None) or getattr(
+        processor, "image_seq_length", None
+    )
+
+    if (
+        callable(construct_prompts)
+        and tokenizer is not None
+        and isinstance(image_token, str)
+        and isinstance(num_image_tokens, int)
+        and num_image_tokens > 0
+    ):
+        prompt_strings = construct_prompts([normalized_task])
+        expanded = [
+            image_token * num_image_tokens
+            + getattr(tokenizer, "bos_token", "")
+            + prompt
+            + getattr(tokenizer, "eos_token", "")
+            for prompt in prompt_strings
+        ]
+        tokenized = tokenizer(expanded, return_tensors="pt", truncation=False)
+        pixel_values = raw_inputs.get("pixel_values")
+        if pixel_values is None:
+            image_processor = getattr(processor, "image_processor", None)
+            if image_processor is not None:
+                pixel_values = image_processor(image, return_tensors="pt")["pixel_values"]
+        fallback = dict(tokenized)
+        if pixel_values is not None:
+            fallback["pixel_values"] = pixel_values
+        if _count_florence_image_tokens(processor, fallback["input_ids"]) > 0:
+            return fallback
+
+    return dict(raw_inputs)
+
+
+def _validate_florence_inputs(inputs: dict[str, torch.Tensor], processor: object) -> None:
+    """Verify pixel_values and image placeholder tokens before generation."""
+    pixel_values = inputs.get("pixel_values")
+    input_ids = inputs.get("input_ids")
+
+    if pixel_values is None:
+        raise ValueError("Florence inputs missing pixel_values")
+    if pixel_values.ndim != 4:
+        raise ValueError(
+            f"Expected pixel_values rank 4, got shape {tuple(pixel_values.shape)}"
+        )
+    if pixel_values.shape[0] != 1:
+        raise ValueError(
+            f"Expected batch size 1 for pixel_values, got {pixel_values.shape[0]}"
+        )
+    if input_ids is None:
+        raise ValueError("Florence inputs missing input_ids")
+
+    image_token_count = _count_florence_image_tokens(processor, input_ids)
+    if image_token_count == 0:
+        raise ValueError(
+            "Florence input_ids contain 0 image tokens; "
+            f"input_ids shape={tuple(input_ids.shape)}, "
+            f"pixel_values shape={tuple(pixel_values.shape)}"
+        )
 
 
 def _model_compute_dtype(model: torch.nn.Module) -> torch.dtype:
@@ -189,6 +372,7 @@ def _load_florence(config: Config):
         torch_dtype=dtype,
     ).to(device)
     model.eval()
+    _sync_florence_processor(processor, model)
 
     _florence_model, _florence_processor = model, processor
     return model, processor
@@ -208,7 +392,8 @@ def generate_caption(
     device = next(model.parameters()).device
     if image.mode != "RGB":
         image = image.convert("RGB")
-    raw_inputs = processor(text=task, images=image, return_tensors="pt")
+    raw_inputs = _build_florence_processor_inputs(processor, task, image)
+    _validate_florence_inputs(raw_inputs, processor)
     inputs = _prepare_florence_inputs(raw_inputs, model, device)
     with torch.no_grad():
         generated = model.generate(
@@ -231,7 +416,7 @@ def generate_clinical_vqa(
     """Answer clinical VQA prompts using Florence-2."""
     answers: list[str] = []
     for question in questions:
-        task = f"<VQA>{question}"
+        task = f"{FLORENCE_VQA_PREFIX}{question.strip()}"
         answers.append(generate_caption(image, config, task=task))
     return answers
 

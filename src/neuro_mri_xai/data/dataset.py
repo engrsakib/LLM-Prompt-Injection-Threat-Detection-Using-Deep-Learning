@@ -222,6 +222,43 @@ def stratified_split_indices(
     return train_idx, val_idx, test_idx
 
 
+def compute_class_weights(
+    labels: list[int],
+    num_classes: int,
+    device: torch.device | None = None,
+) -> torch.Tensor:
+    """Inverse-frequency class weights: total / (num_classes * class_count)."""
+    counts = torch.zeros(num_classes, dtype=torch.float32)
+    for label in labels:
+        counts[label] += 1.0
+    counts = counts.clamp(min=1.0)
+    total = float(len(labels))
+    weights = total / (num_classes * counts)
+    if device is not None:
+        weights = weights.to(device)
+    return weights
+
+
+def get_train_labels(config: Config) -> list[int]:
+    """Return training-split labels using the same stratified split as dataloaders."""
+    data_dir = ensure_dataset_available(config)
+    expected_classes = config.get_class_names()
+    base_dataset = MRIDataset(
+        root=data_dir,
+        transform=None,
+        roi_fn=None,
+        expected_classes=expected_classes,
+    )
+    labels = [label for _, label in base_dataset.samples]
+    train_idx, _, _ = stratified_split_indices(
+        labels,
+        val_split=config.dataset.val_split,
+        test_split=config.dataset.test_split,
+        seed=config.dataset.seed,
+    )
+    return [labels[i] for i in train_idx]
+
+
 def get_dataloaders(
     config: Config,
     roi_fn: Callable[[Image.Image], Image.Image] | None = None,

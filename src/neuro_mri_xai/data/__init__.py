@@ -10,8 +10,10 @@
 from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
 from neuro_mri_xai.data.dataset import (
     MRIDataset,
+    compute_class_weights,
     ensure_dataset_available,
     get_dataloaders,
+    get_train_labels,
     resolve_data_dir,
     stratified_split_indices,
 )
@@ -26,8 +28,10 @@ __all__ = [
     "EXPECTED_CLASS_NAMES",
     "NUM_CLASSES",
     "MRIDataset",
+    "compute_class_weights",
     "ensure_dataset_available",
     "get_dataloaders",
+    "get_train_labels",
     "resolve_data_dir",
     "stratified_split_indices",
     "get_train_transforms",

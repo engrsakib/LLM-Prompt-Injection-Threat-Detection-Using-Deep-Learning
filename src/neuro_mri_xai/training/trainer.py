@@ -13,7 +13,6 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from neuro_mri_xai.config import Config
@@ -33,6 +32,7 @@ class Trainer:
         config: Config,
         class_names: list[str],
         device: torch.device | None = None,
+        class_weights: torch.Tensor | None = None,
     ) -> None:
         self.model = model
         self.config = config
@@ -40,25 +40,38 @@ class Trainer:
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
 
-        backbone_params, head_params = get_backbone_and_head_params(self.model)
-        param_groups = []
-        if backbone_params:
-            param_groups.append(
-                {"params": backbone_params, "lr": config.training.backbone_lr},
+        if config.training.freeze_early_backbone:
+            trainable_params = [p for p in self.model.parameters() if p.requires_grad]
+            self.optimizer = torch.optim.AdamW(
+                trainable_params,
+                lr=config.training.lr,
+                weight_decay=config.training.weight_decay,
             )
-        if head_params:
-            param_groups.append({"params": head_params, "lr": config.training.lr})
+        else:
+            backbone_params, head_params = get_backbone_and_head_params(self.model)
+            param_groups = []
+            if backbone_params:
+                param_groups.append(
+                    {"params": backbone_params, "lr": config.training.backbone_lr},
+                )
+            if head_params:
+                param_groups.append({"params": head_params, "lr": config.training.lr})
+            self.optimizer = torch.optim.AdamW(
+                param_groups or self.model.parameters(),
+                weight_decay=config.training.weight_decay,
+            )
 
-        self.optimizer = torch.optim.AdamW(
-            param_groups or self.model.parameters(),
-            weight_decay=config.training.weight_decay,
-        )
         self.scheduler = None
         if config.training.use_cosine_scheduler:
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer,
                 T_max=config.training.epochs,
             )
+
+        if class_weights is not None:
+            self.criterion = nn.CrossEntropyLoss(weight=class_weights.to(self.device))
+        else:
+            self.criterion = nn.CrossEntropyLoss()
 
         self.scaler = torch.amp.GradScaler(
             "cuda",
@@ -90,7 +103,7 @@ class Trainer:
                     enabled=self.config.training.use_amp and torch.cuda.is_available(),
                 ):
                     logits = self.model(images)
-                    loss = F.cross_entropy(logits, labels)
+                    loss = self.criterion(logits, labels)
 
                 if train:
                     self.optimizer.zero_grad(set_to_none=True)

@@ -27,7 +27,7 @@ model:
   num_classes: 8
   pretrained: true
   drop_path_rate: 0.1
-  use_lora: true
+  use_lora: false
   lora_r: 8
   lora_alpha: 16
   lora_target_modules: ["qkv", "proj"]
@@ -55,6 +55,8 @@ training:
   log_dir: "outputs/logs"
   use_amp: true
   use_cosine_scheduler: true
+  freeze_early_backbone: true
+  use_class_weights: true
 
 vram:
   max_batch_size: 16

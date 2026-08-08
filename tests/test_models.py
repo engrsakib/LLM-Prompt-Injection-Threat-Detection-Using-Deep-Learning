@@ -12,7 +12,11 @@ from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES
 from neuro_mri_xai.models import build_model
 from neuro_mri_xai.models.lora import apply_lora, get_trainable_param_count
 from neuro_mri_xai.models.sam_roi import _otsu_bbox, overlay_heatmap_on_mask
-from neuro_mri_xai.models.swin_classifier import get_swin_target_layers, unwrap_model
+from neuro_mri_xai.models.swin_classifier import (
+    apply_swin_partial_freeze,
+    get_swin_target_layers,
+    unwrap_model,
+)
 
 
 @pytest.fixture
@@ -64,6 +68,24 @@ def test_unwrap_model_and_target_layers(config: Config):
     assert hasattr(backbone, "layers")
     gradcam_layer, attn_layer = get_swin_target_layers(model)
     assert gradcam_layer is not None
+
+
+def test_apply_swin_partial_freeze_leaves_last_stage_and_head_trainable(config: Config):
+    pytest.importorskip("timm")
+    model = build_model(config, pretrained=False)
+    trainable_before, total = get_trainable_param_count(model)
+    assert trainable_before == total
+
+    trainable_after, _ = apply_swin_partial_freeze(model)
+    assert 0 < trainable_after < trainable_before
+
+    for name, param in model.named_parameters():
+        in_last_stage = name.startswith("layers.3") or ".layers.3." in name
+        in_head = name.startswith("head") or ".head." in name
+        if in_last_stage or in_head:
+            assert param.requires_grad, f"Expected trainable: {name}"
+        else:
+            assert not param.requires_grad, f"Expected frozen: {name}"
 
 
 def test_explain_sample_return_keys(tmp_path, config: Config):
