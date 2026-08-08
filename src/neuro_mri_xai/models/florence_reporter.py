@@ -20,38 +20,125 @@ logger = logging.getLogger(__name__)
 
 _florence_model = None
 _florence_processor = None
+_tokenizer_compat_patched = False
+
+
+def _additional_special_tokens_getter(tokenizer: object) -> list[str]:
+    """Safe accessor compatible with slow and fast Hugging Face tokenizers."""
+    stored = getattr(tokenizer, "_additional_special_tokens", None)
+    if stored is not None:
+        return list(stored)
+
+    getter = getattr(tokenizer, "get_additional_special_tokens", None)
+    if callable(getter):
+        try:
+            return list(getter())
+        except Exception:
+            pass
+
+    all_special = getattr(tokenizer, "all_special_tokens", None)
+    if all_special:
+        return list(all_special)
+
+    return []
+
+
+def _patch_tokenizer_additional_special_tokens() -> None:
+    """Monkey-patch tokenizer classes used by Florence-2 remote processor code."""
+    global _tokenizer_compat_patched
+    if _tokenizer_compat_patched:
+        return
+
+    import transformers.tokenization_utils_base as tok_utils
+
+    prop = property(_additional_special_tokens_getter)
+    patched: set[int] = set()
+
+    def _apply(cls: type) -> None:
+        cls_id = id(cls)
+        if cls_id in patched:
+            return
+        try:
+            cls.additional_special_tokens = prop
+            patched.add(cls_id)
+        except (TypeError, AttributeError):
+            logger.debug("Could not patch additional_special_tokens on %s", cls)
+
+    _apply(tok_utils.PreTrainedTokenizerBase)
+
+    optional_modules = (
+        "transformers.tokenization_utils_fast",
+        "transformers.tokenization_utils",
+    )
+    optional_names = ("PreTrainedTokenizerFast", "TokenizersBackend")
+
+    for module_name in optional_modules:
+        try:
+            module = __import__(module_name, fromlist=list(optional_names))
+        except ImportError:
+            continue
+        for name in optional_names:
+            cls = getattr(module, name, None)
+            if isinstance(cls, type):
+                _apply(cls)
+
+    _tokenizer_compat_patched = True
+
+
+def _ensure_instance_additional_special_tokens(tokenizer: object) -> None:
+    """Ensure tokenizer instances never raise on `.additional_special_tokens`."""
+    try:
+        _ = tokenizer.additional_special_tokens
+    except AttributeError:
+        try:
+            tokenizer._additional_special_tokens = []
+        except Exception:
+            logger.debug("Could not set _additional_special_tokens on %s", type(tokenizer))
 
 
 def _load_florence_processor(model_id: str):
-    """Load Florence-2 processor with slow tokenizer for transformers compatibility."""
+    """Load Florence-2 processor with tokenizer compatibility patches applied."""
     from transformers import AutoImageProcessor, AutoProcessor, AutoTokenizer
 
+    _patch_tokenizer_additional_special_tokens()
     trust = {"trust_remote_code": True}
+
     slow_tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, **trust)
-
-    # Prefer injecting slow tokenizer so remote Florence2Processor avoids fast-tokenizer APIs.
-    try:
-        return AutoProcessor.from_pretrained(model_id, tokenizer=slow_tokenizer, **trust)
-    except TypeError:
-        logger.debug("AutoProcessor.from_pretrained(tokenizer=...) unsupported; retrying use_fast=False")
+    _ensure_instance_additional_special_tokens(slow_tokenizer)
 
     try:
-        return AutoProcessor.from_pretrained(model_id, use_fast=False, **trust)
-    except AttributeError as exc:
+        processor = AutoProcessor.from_pretrained(model_id, tokenizer=slow_tokenizer, **trust)
+        if getattr(processor, "tokenizer", None) is not None:
+            _ensure_instance_additional_special_tokens(processor.tokenizer)
+        return processor
+    except Exception as exc:
         logger.warning(
-            "AutoProcessor use_fast=False failed (%s); assembling Florence-2 processor manually",
+            "AutoProcessor.from_pretrained(tokenizer=...) failed (%s); retrying fallbacks",
             exc,
         )
+
+    try:
+        processor = AutoProcessor.from_pretrained(model_id, use_fast=False, **trust)
+        if getattr(processor, "tokenizer", None) is not None:
+            _ensure_instance_additional_special_tokens(processor.tokenizer)
+        return processor
+    except Exception as exc:
+        logger.warning("AutoProcessor use_fast=False failed (%s); assembling manually", exc)
 
     image_processor = AutoImageProcessor.from_pretrained(model_id, **trust)
     try:
         from transformers.models.florence2.processing_florence2 import Florence2Processor
-    except ImportError as import_exc:
-        raise RuntimeError(
-            f"Failed to load Florence-2 processor for {model_id} with slow tokenizer"
-        ) from import_exc
+    except ImportError:
+        try:
+            from transformers import Florence2Processor
+        except ImportError as import_exc:
+            raise RuntimeError(
+                f"Failed to load Florence-2 processor for {model_id}"
+            ) from import_exc
 
-    return Florence2Processor(image_processor=image_processor, tokenizer=slow_tokenizer)
+    processor = Florence2Processor(image_processor=image_processor, tokenizer=slow_tokenizer)
+    _ensure_instance_additional_special_tokens(processor.tokenizer)
+    return processor
 
 
 def _load_florence(config: Config):
@@ -61,15 +148,20 @@ def _load_florence(config: Config):
 
     from transformers import Florence2ForConditionalGeneration
 
+    _patch_tokenizer_additional_special_tokens()
+
+    model_id = config.florence.model_id
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float16 if device == "cuda" else torch.float32
-    processor = _load_florence_processor(config.florence.model_id)
+
+    processor = _load_florence_processor(model_id)
     model = Florence2ForConditionalGeneration.from_pretrained(
-        config.florence.model_id,
+        model_id,
         trust_remote_code=True,
         torch_dtype=dtype,
     ).to(device)
     model.eval()
+
     _florence_model, _florence_processor = model, processor
     return model, processor
 

@@ -2,20 +2,49 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 
-from neuro_mri_xai.models.florence_reporter import _load_florence_processor
+from neuro_mri_xai.models import florence_reporter as fr
 
 
-def test_load_florence_processor_prefers_slow_tokenizer() -> None:
+@pytest.fixture(autouse=True)
+def reset_florence_patch_flag() -> None:
+    fr._tokenizer_compat_patched = False
+    yield
+    fr._tokenizer_compat_patched = False
+
+
+def test_patch_adds_additional_special_tokens_property() -> None:
     pytest.importorskip("transformers")
-    slow_tokenizer = object()
-    processor = object()
+    import transformers.tokenization_utils_base as tok_utils
+
+    fr._patch_tokenizer_additional_special_tokens()
+    assert isinstance(tok_utils.PreTrainedTokenizerBase.additional_special_tokens, property)
+
+
+def test_additional_special_tokens_getter_fallback() -> None:
+    stub = SimpleNamespace(all_special_tokens=["<s>", "</s>"])
+    assert fr._additional_special_tokens_getter(stub) == ["<s>", "</s>"]
+    assert fr._additional_special_tokens_getter(SimpleNamespace()) == []
+
+
+def test_ensure_instance_sets_fallback_list() -> None:
+    tokenizer = SimpleNamespace()
+    fr._ensure_instance_additional_special_tokens(tokenizer)
+    assert tokenizer._additional_special_tokens == []
+
+
+def test_load_florence_processor_applies_patch_and_uses_slow_tokenizer() -> None:
+    pytest.importorskip("transformers")
+    slow_tokenizer = SimpleNamespace(_additional_special_tokens=[])
+    processor = SimpleNamespace(tokenizer=slow_tokenizer)
     model_id = "microsoft/Florence-2-base"
 
     with (
+        mock.patch.object(fr, "_patch_tokenizer_additional_special_tokens") as mock_patch,
         mock.patch(
             "transformers.AutoTokenizer.from_pretrained",
             return_value=slow_tokenizer,
@@ -25,8 +54,9 @@ def test_load_florence_processor_prefers_slow_tokenizer() -> None:
             return_value=processor,
         ) as mock_processor,
     ):
-        result = _load_florence_processor(model_id)
+        result = fr._load_florence_processor(model_id)
 
+    mock_patch.assert_called_once()
     mock_tokenizer.assert_called_once_with(model_id, use_fast=False, trust_remote_code=True)
     mock_processor.assert_called_once_with(
         model_id,
@@ -38,8 +68,8 @@ def test_load_florence_processor_prefers_slow_tokenizer() -> None:
 
 def test_load_florence_processor_falls_back_to_use_fast_false() -> None:
     pytest.importorskip("transformers")
-    slow_tokenizer = object()
-    processor = object()
+    slow_tokenizer = SimpleNamespace(_additional_special_tokens=[])
+    processor = SimpleNamespace(tokenizer=slow_tokenizer)
     model_id = "microsoft/Florence-2-base"
 
     with (
@@ -49,10 +79,10 @@ def test_load_florence_processor_falls_back_to_use_fast_false() -> None:
         ),
         mock.patch(
             "transformers.AutoProcessor.from_pretrained",
-            side_effect=[TypeError("tokenizer kw unsupported"), processor],
+            side_effect=[RuntimeError("tokenizer override ignored"), processor],
         ) as mock_processor,
     ):
-        result = _load_florence_processor(model_id)
+        result = fr._load_florence_processor(model_id)
 
     assert mock_processor.call_count == 2
     mock_processor.assert_any_call(model_id, use_fast=False, trust_remote_code=True)
