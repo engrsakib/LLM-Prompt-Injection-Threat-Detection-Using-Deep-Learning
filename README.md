@@ -132,7 +132,7 @@ data/
 ```
 model/
 ├── configs/default.yaml              # Central hyperparameter & path configuration
-├── Colab_Runner.ipynb                # Kaggle notebook orchestrator (subprocess-based)
+├── Colab_Runner.ipynb                # Kaggle 11-cell orchestrator (subprocess-based)
 ├── scripts/                          # Data/weight download, CI helpers
 ├── src/neuro_mri_xai/
 │   ├── config.py                     # Typed YAML loader
@@ -189,205 +189,408 @@ Edit [`configs/default.yaml`](configs/default.yaml) or override at runtime:
 
 ## 🚀 Kaggle Quickstart & Execution Guide
 
-Run this pipeline on **[Kaggle Notebooks](https://www.kaggle.com/code)** with a **GPU accelerator (T4, 16 GB VRAM)**.
+Run the full pipeline on **[Kaggle Notebooks](https://www.kaggle.com/code)** using the official orchestrator: [`Colab_Runner.ipynb`](Colab_Runner.ipynb).
 
-### Prerequisites
+The notebook contains **11 cells total** — one Markdown intro plus **10 executable Code cells (Cell 1 → Cell 10)**. Paste each block below into a matching Kaggle Code cell and run **in order** (later cells depend on `PROJECT_DIR`, `DATA_DIR`, and `sample_image` from earlier steps).
 
-1. **Settings → Accelerator → GPU T4 x2** (or T4 x1).
-2. **Add Input → Datasets** → search and attach:
-   [`engrsakib02/neurological-disorders-mri-dataset-for-xai`](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai)
-3. Create a new notebook and paste each cell block below **in order**.
+### Prerequisites (Markdown Cell — run first)
 
-> **Tip:** In Kaggle Code cells, either use `%%bash` as the first line of a cell, or prefix each command with `!` (e.g. `!pip install -r requirements.txt`).
+1. **Settings → Accelerator → GPU** (T4 recommended, 16 GB VRAM).
+2. **Add Input → Datasets** → attach [`engrsakib02/neurological-disorders-mri-dataset-for-xai`](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai).
+3. Run all Code cells sequentially.
+
+### Workflow Overview
+
+| Step | Cell | Purpose | Key Outputs |
+|------|------|---------|-------------|
+| 0 | Markdown | Prerequisites & dataset attachment | — |
+| 1 | Code | GPU / Python / PyTorch environment check | CUDA status, GPU name |
+| 2 | Code | Clone repository to `/kaggle/working/` | `PROJECT_DIR` |
+| 3 | Code | Install dependencies (`pip install -e .`) | `neuro_mri_xai` importable |
+| 4 | Code | Resolve dataset path + set env vars | `DATA_DIR`, config summary |
+| 5 | Code | Download SAM weights | `weights/sam_vit_b_01ec64.pth` |
+| 6 | Code | Train Swin classifier | `outputs/checkpoints/best_swin.pt` |
+| 7 | Code | Evaluate on held-out test set | `outputs/figures/metrics.json`, confusion matrix |
+| 8 | Code | Single-sample XAI (Grad-CAM, attention, SAM) | `outputs/figures/*_gradcam.png`, etc. |
+| 9 | Code | HTML diagnostic report (Florence-2 + XAI) | `outputs/reports/*.html` |
+| 10 | Code | List persisted output artifacts | File counts under `outputs/` |
+
+> **Note:** `configs/default.yaml` uses **partial Swin fine-tuning** (`use_lora: false`, `freeze_early_backbone: true`). The notebook header still references “Swin + LoRA” for historical compatibility; LoRA can be re-enabled via config if needed.
 
 ---
 
-### Cell 1 — Environment Setup & Code Sync
+### Cell 1 — Environment Check
 
-Clone (or update) the repository, install dependencies, and sync the latest fixes including **Florence-2 task-prompt validation** and **Swin partial fine-tuning defaults**.
+Verify Python, PyTorch, and GPU availability before installing anything.
 
-```bash
-# Navigate to Kaggle working directory
-cd /kaggle/working
+```python
+# Cell 1: Environment check
+import sys
 
-# Clone on first run; skip if directory already exists
-if [ ! -d "Neurological-MRI-XAI-Pipeline" ]; then
-  git clone https://github.com/engrsakib/Neurological-MRI-XAI-Pipeline.git
-fi
+import torch
 
-cd /kaggle/working/Neurological-MRI-XAI-Pipeline
-
-# Pull latest fixes (Florence-2 prompt fix, Swin optimization, patient splits)
-git fetch origin
-git pull origin main
-
-# Install package and dependencies
-pip install -q -r requirements.txt
-pip install -q -e .
-pip install -q git+https://github.com/facebookresearch/segment-anything.git
-
-# Confirm import
-python -c "import neuro_mri_xai; print('neuro_mri_xai OK')"
+print(f"Python: {sys.version}")
+print(f"PyTorch: {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
 ```
 
-**Expected output:** Package imports without error; repo at `/kaggle/working/Neurological-MRI-XAI-Pipeline`.
+**Expected output:** `CUDA available: True` and a T4 (or similar) GPU name.
 
 ---
 
-### Cell 2 — Data Directory & Dataset Verification
+### Cell 2 — Clone Repository
 
-Verify the Kaggle dataset mount, resolve the ImageFolder root, and print per-class distribution.
+Clone the pipeline into Kaggle working storage. Re-running this cell skips clone if the folder already exists.
 
-```bash
-cd /kaggle/working/Neurological-MRI-XAI-Pipeline
-
-export DATA_DIR="/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data"
-export NEURO_MRI_PROJECT_ROOT="/kaggle/working/Neurological-MRI-XAI-Pipeline"
-export NEURO_MRI_SAM_ENABLED="false"
-export NEURO_MRI_SEQUENTIAL_VRAM="true"
-
-# List Kaggle input mounts
-ls -la /kaggle/input/
-ls -la /kaggle/input/datasets/ 2>/dev/null || true
-
-# Verify 8 class folders exist
-python - <<'PY'
+```python
+# Cell 2: Clone repository
+import os
+import subprocess
 from pathlib import Path
+
+REPO_URL = "https://github.com/engrsakib/Neurological-MRI-XAI-Pipeline.git"
+PROJECT_DIR = Path("/kaggle/working/Neurological-MRI-XAI-Pipeline")
+
+if not PROJECT_DIR.exists():
+    subprocess.run(["git", "clone", REPO_URL, str(PROJECT_DIR)], check=True)
+else:
+    print(f"Repo already exists at {PROJECT_DIR}")
+    # Optional: pull latest fixes (Florence-2 prompt, Swin partial FT, patient splits)
+    subprocess.run(["git", "-C", str(PROJECT_DIR), "fetch", "origin"], check=True)
+    subprocess.run(["git", "-C", str(PROJECT_DIR), "pull", "origin", "main"], check=True)
+
+os.chdir(PROJECT_DIR)
+print(f"Working directory: {os.getcwd()}")
+```
+
+**Expected output:** `Working directory: /kaggle/working/Neurological-MRI-XAI-Pipeline`
+
+---
+
+### Cell 3 — Install Dependencies
+
+Install project requirements, editable package, and Segment Anything.
+
+```python
+# Cell 3: Install dependencies
+import subprocess
+import sys
+
+import torch
+
+print(f"Kaggle torch version: {torch.__version__}")
+
+subprocess.run(["pip", "install", "-q", "-r", "requirements.txt"], check=True)
+subprocess.run(["pip", "install", "-q", "-e", "."], check=True)
+subprocess.run(
+    ["pip", "install", "-q", "git+https://github.com/facebookresearch/segment-anything.git"],
+    check=True,
+)
+
+sys.path.insert(0, str(PROJECT_DIR / "src"))
+print("Dependencies installed.")
+```
+
+**Expected output:** `Dependencies installed.`
+
+---
+
+### Cell 4 — Kaggle Dataset Path & Environment
+
+Verify the Kaggle input mount, resolve the ImageFolder root via `load_config`, and print the active model settings. SAM is **disabled** during training to save VRAM.
+
+```python
+# Cell 4: Kaggle dataset path + environment
+import os
+from pathlib import Path
+
+from neuro_mri_xai.config import load_config
+
+DATA_DIR = "/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data"
+
+print("Kaggle inputs:", os.listdir("/kaggle/input"))
+data_path = Path(DATA_DIR)
+assert data_path.exists() or data_path.parent.exists(), (
+    "Attach engrsakib02/neurological-disorders-mri-dataset-for-xai via Add Input"
+)
+
+os.environ["NEURO_MRI_PROJECT_ROOT"] = str(PROJECT_DIR)
+os.environ["NEURO_MRI_SAM_ENABLED"] = "false"
+os.environ["NEURO_MRI_SEQUENTIAL_VRAM"] = "true"
+
+cfg = load_config("configs/default.yaml", data_dir=DATA_DIR)
+DATA_DIR = str(cfg.dataset.data_dir)
+print(f"Resolved data dir: {DATA_DIR}")
+print(f"Backbone: {cfg.model.backbone}, LoRA: {cfg.model.use_lora}, SAM: {cfg.sam.enabled}")
+print(f"Split strategy: {cfg.dataset.split_strategy}, freeze backbone: {cfg.training.freeze_early_backbone}")
+```
+
+**Optional — per-class distribution check** (append to Cell 4 or run as a separate cell):
+
+```python
 from collections import Counter
 
-DATA_DIR = Path("/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data")
-EXPECTED = [
-    "AD_MildDemented", "AD_ModerateDemented", "AD_VeryMildDemented",
-    "BT_glioma", "BT_meningioma", "BT_pituitary", "MS", "Normal",
-]
-
-if not DATA_DIR.is_dir():
-    # Fallback: auto-resolve outer mount
-    outer = Path("/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai")
-    DATA_DIR = outer / "data" if (outer / "data").is_dir() else outer
-
-assert DATA_DIR.is_dir(), f"Dataset not found at {DATA_DIR}. Attach the Kaggle dataset via Add Input."
-
+EXPECTED = cfg.get_class_names()
 counts = {}
 for cls in EXPECTED:
-    folder = DATA_DIR / cls
-    n = len(list(folder.glob("*.*"))) if folder.is_dir() else 0
-    counts[cls] = n
+    folder = Path(DATA_DIR) / cls
+    counts[cls] = len(list(folder.glob("*.*"))) if folder.is_dir() else 0
 
-print(f"\nDataset root: {DATA_DIR}")
 print(f"Total images: {sum(counts.values()):,}")
-print("\nClass distribution:")
 for cls, n in sorted(counts.items(), key=lambda x: -x[1]):
     print(f"  {cls:25s} {n:6,d}")
-PY
 ```
 
-**Expected output:** 8 class folders detected; total image count ~16,400; no missing-class errors.
+**Expected output:** Resolved path under `/kaggle/input/.../data`, 8 classes, ~16,400 total images.
 
 ---
 
-### Cell 3 — Execute Model Training (Swin Transformer Optimization)
+### Cell 5 — Download SAM Weights
 
-Train with the optimized defaults: **partial backbone freeze**, **class-weighted loss**, **enhanced augmentation**, **AdamW + CosineAnnealingLR**, and **patient-level splits**.
+Download `sam_vit_b_01ec64.pth` into the configured weights directory (required for Cells 8–9).
+
+```python
+# Cell 5: Download SAM weights
+import subprocess
+
+subprocess.run(["python", "scripts/download_weights.py", "--config", "configs/default.yaml"], check=True)
+```
+
+**Expected output:** SAM checkpoint saved to `weights/sam_vit_b_01ec64.pth`.
+
+---
+
+### Cell 6 — Train Swin Classifier
+
+Run the training CLI with optimized defaults: partial backbone freeze, class-weighted loss, augmentation, AdamW + CosineAnnealingLR, patient-level splits.
+
+```python
+# Cell 6: Train Swin classifier
+import subprocess
+
+subprocess.run(
+    [
+        "python",
+        "-m",
+        "neuro_mri_xai.training.train_cli",
+        "--config",
+        "configs/default.yaml",
+        "--data-dir",
+        DATA_DIR,
+    ],
+    check=True,
+)
+```
+
+| Deliverable | Path |
+|-------------|------|
+| Best checkpoint | `outputs/checkpoints/best_swin.pt` |
+| Training curves | `outputs/logs/training_curves.png` |
+| LoRA adapter (if enabled) | `outputs/checkpoints/lora_adapter/` |
+
+**Expected console output:**
+
+```
+Using dataset: /kaggle/input/.../data
+Partial fine-tune: ... trainable parameters
+Using class-weighted CrossEntropyLoss (8 classes)
+Epoch 1/20 — train_loss=... val_acc=...
+  Saved best checkpoint (val_acc=...)
+Best checkpoint: outputs/checkpoints/best_swin.pt (val_acc=...)
+```
+
+Equivalent terminal command:
 
 ```bash
-cd /kaggle/working/Neurological-MRI-XAI-Pipeline
-
-export DATA_DIR="/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data"
-export NEURO_MRI_SAM_ENABLED="false"
-
 python -m neuro_mri_xai.training.train_cli \
   --config configs/default.yaml \
   --data-dir "${DATA_DIR}"
 ```
 
-| Deliverable | Path | Description |
-|-------------|------|-------------|
-| Best checkpoint | `outputs/checkpoints/best_swin.pt` | Highest validation-accuracy model weights |
-| Training curves | `outputs/logs/training_curves.png` | Loss and accuracy per epoch |
-| LoRA adapter | `outputs/checkpoints/lora_adapter/` | Only if `use_lora: true` in config |
-
-**Expected console output (representative):**
-
-```
-Using dataset: /kaggle/input/.../data
-Partial fine-tune: ~7,000,000 / ~87,000,000 trainable parameters (8.00%)
-Using class-weighted CrossEntropyLoss (8 classes)
-Epoch 1/20 — train_loss=... train_acc=... val_loss=... val_acc=...
-  Saved best checkpoint (val_acc=...)
-Best checkpoint: outputs/checkpoints/best_swin.pt (val_acc=...)
-```
-
-> **VRAM tip:** SAM and Florence-2 are intentionally disabled during training. They load only in Cell 4.
-
 ---
 
-### Cell 4 — Run Complete XAI Evaluation & Medical Report Generation
+### Cell 7 — Evaluate on Test Set
 
-Download SAM weights, evaluate on the held-out test set, export XAI visualizations, and generate an HTML diagnostic report with Florence-2 clinical narrative.
+Run held-out test evaluation: accuracy, macro P/R/F1, AUC-ROC, confusion matrix, and per-class metrics.
+
+```python
+# Cell 7: Evaluate on test set
+import subprocess
+
+subprocess.run(
+    [
+        "python",
+        "-m",
+        "neuro_mri_xai.evaluation.test_eval",
+        "--config",
+        "configs/default.yaml",
+        "--checkpoint",
+        "outputs/checkpoints/best_swin.pt",
+        "--data-dir",
+        DATA_DIR,
+    ],
+    check=True,
+)
+```
+
+**Optional — include batch XAI export during evaluation:**
+
+```python
+subprocess.run(
+    [
+        "python", "-m", "neuro_mri_xai.evaluation.test_eval",
+        "--config", "configs/default.yaml",
+        "--checkpoint", "outputs/checkpoints/best_swin.pt",
+        "--data-dir", DATA_DIR,
+        "--export-xai",
+        "--xai-max-samples", "16",
+    ],
+    check=True,
+)
+```
+
+| Deliverable | Path |
+|-------------|------|
+| Confusion matrix | `outputs/figures/confusion_matrix.png` |
+| Per-class metrics | `outputs/figures/per_class_metrics.json` |
+| ROC curves | `outputs/figures/roc_curves.png` |
+| Test metrics | `outputs/figures/metrics.json` |
+| Classification report | `outputs/figures/classification_report.txt` |
+
+Equivalent terminal command:
 
 ```bash
-cd /kaggle/working/Neurological-MRI-XAI-Pipeline
-
-export DATA_DIR="/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data"
-export NEURO_MRI_SAM_ENABLED="true"
-export NEURO_MRI_SEQUENTIAL_VRAM="true"
-
-# Download SAM checkpoint (required for ROI overlays)
-python scripts/download_weights.py --config configs/default.yaml
-
-# --- Step A: Test-set evaluation + per-class metrics + batch XAI ---
 python -m neuro_mri_xai.evaluation.test_eval \
   --config configs/default.yaml \
   --checkpoint outputs/checkpoints/best_swin.pt \
-  --data-dir "${DATA_DIR}" \
-  --export-xai \
-  --xai-max-samples 16
-
-# --- Step B: HTML diagnostic report (single representative slice) ---
-SAMPLE=$(find "${DATA_DIR}" -name "*.jpg" -o -name "*.png" | head -n 1)
-
-python -m neuro_mri_xai.report \
-  --config configs/default.yaml \
-  --checkpoint outputs/checkpoints/best_swin.pt \
-  --image "${SAMPLE}" \
   --data-dir "${DATA_DIR}"
 ```
 
-Pass `--skip-florence` on the report command to reduce VRAM if Florence-2 fails to load.
+---
 
-#### Generated Deliverables
+### Cell 8 — XAI Visualizations (Single Sample)
 
-| Artifact | Path | Contents |
-|----------|------|----------|
-| **Confusion matrix** | `outputs/figures/confusion_matrix.png` | Counts + per-class Precision / Recall / F1 footer |
-| **Per-class metrics** | `outputs/figures/per_class_metrics.json` | P/R/F1/support for all 8 classes |
-| **ROC curves** | `outputs/figures/roc_curves.png` | One-vs-rest AUC per class |
-| **Test metrics** | `outputs/figures/metrics.json` | Accuracy, macro P/R/F1, macro AUC |
-| **Classification report** | `outputs/figures/classification_report.txt` | sklearn text report |
-| **Grad-CAM overlays** | `outputs/figures/xai_batch/<sample>_gradcam.png` | Original + heatmap side-by-side |
-| **Attention maps** | `outputs/figures/xai_batch/<sample>_attention.png` | Attention saliency overlay |
-| **SAM ROI overlays** | `outputs/figures/xai_batch/<sample>_sam_overlay.png` | SAM-constrained Grad-CAM |
-| **SAM boundary masks** | `outputs/figures/xai_batch/<sample>_sam_mask.png` | Binary brain ROI segmentation |
-| **XAI index** | `outputs/figures/xai_batch/xai_batch_index.json` | Metadata for all exported samples |
-| **HTML report** | `outputs/reports/*.html` | Prediction, confidence, Florence-2 narrative, embedded XAI figures |
+Enable SAM, pick a sample MRI slice, and export Grad-CAM, attention saliency, and SAM-constrained overlay figures.
+
+```python
+# Cell 8: XAI visualizations (single sample)
+import os
+import subprocess
+from pathlib import Path
+
+os.environ["NEURO_MRI_SAM_ENABLED"] = "true"
+sample_image = next(Path(DATA_DIR).rglob("*.jpg"))
+print(f"Sample: {sample_image}")
+
+subprocess.run(
+    [
+        "python",
+        "-m",
+        "neuro_mri_xai.explainability.xai_cli",
+        "--config",
+        "configs/default.yaml",
+        "--checkpoint",
+        "outputs/checkpoints/best_swin.pt",
+        "--image",
+        str(sample_image),
+        "--data-dir",
+        DATA_DIR,
+        "--output-dir",
+        "outputs/figures",
+    ],
+    check=True,
+)
+```
+
+| Deliverable | Path |
+|-------------|------|
+| Grad-CAM overlay | `outputs/figures/<stem>_gradcam.png` |
+| Attention saliency | `outputs/figures/<stem>_attention.png` |
+| SAM-constrained overlay | `outputs/figures/<stem>_sam_overlay.png` |
+| SAM ROI mask | `outputs/figures/<stem>_sam_mask.png` |
+
+Equivalent terminal command:
+
+```bash
+python -m neuro_mri_xai.explainability.xai_cli \
+  --config configs/default.yaml \
+  --checkpoint outputs/checkpoints/best_swin.pt \
+  --image "${SAMPLE_IMAGE}" \
+  --data-dir "${DATA_DIR}" \
+  --output-dir outputs/figures
+```
 
 ---
 
-### Cell 5 — Persist Outputs (Optional)
+### Cell 9 — Full HTML Diagnostic Report
 
-Kaggle persists files under `/kaggle/working/` for the session duration. Download before the notebook stops.
+Generate an inline-viewable HTML report combining classifier prediction, XAI figures, and Florence-2 clinical narrative.
 
-```bash
-cd /kaggle/working/Neurological-MRI-XAI-Pipeline
+```python
+# Cell 9: Full HTML diagnostic report
+import os
+from pathlib import Path
 
-echo "=== Checkpoints ===" && ls -lh outputs/checkpoints/
-echo "=== Figures ==="   && ls -lh outputs/figures/
-echo "=== Reports ==="   && ls -lh outputs/reports/
-echo "=== Logs ==="      && ls -lh outputs/logs/
+from IPython.display import HTML, display
+
+from neuro_mri_xai.report import generate_report
+
+os.environ["NEURO_MRI_SAM_ENABLED"] = "true"
+os.environ["NEURO_MRI_SEQUENTIAL_VRAM"] = "true"
+
+sample_image = next(Path(DATA_DIR).rglob("*.jpg"))
+print(f"Sample: {sample_image}")
+
+report_path = generate_report(
+    checkpoint="outputs/checkpoints/best_swin.pt",
+    image=str(sample_image),
+    config_path="configs/default.yaml",
+    data_dir=DATA_DIR,
+)
+display(HTML(report_path.read_text()))
 ```
 
-Use **Save Version → Save & Run All** or download the `outputs/` folder from the Kaggle file browser.
+Pass `skip_florence=True` to `generate_report(...)` or add `--skip-florence` on the CLI if Florence-2 exceeds VRAM.
+
+Equivalent terminal command:
+
+```bash
+python -m neuro_mri_xai.report \
+  --config configs/default.yaml \
+  --checkpoint outputs/checkpoints/best_swin.pt \
+  --image "${SAMPLE_IMAGE}" \
+  --data-dir "${DATA_DIR}"
+```
+
+| Deliverable | Path |
+|-------------|------|
+| HTML report | `outputs/reports/<stem>_report.html` |
+| Embedded figures | Grad-CAM, attention saliency, SAM overlay (base64 in HTML) |
+| Clinical narrative | Florence-2 caption + predicted class + confidence |
+
+---
+
+### Cell 10 — Persist Outputs
+
+Kaggle automatically persists `/kaggle/working/`. This cell lists artifact counts before the session ends.
+
+```python
+# Cell 10: Persist outputs (Kaggle saves /kaggle/working automatically)
+from pathlib import Path
+
+output_root = Path("outputs")
+for folder in ["checkpoints", "figures", "reports", "logs"]:
+    path = output_root / folder
+    if path.exists():
+        files = list(path.rglob("*"))
+        print(f"{folder}: {len(files)} file(s) under {path.resolve()}")
+
+print("\nDownload outputs from the Kaggle notebook 'Output' tab before the session ends.")
+```
+
+Download **`outputs/checkpoints/`**, **`outputs/figures/`**, **`outputs/reports/`**, and **`outputs/logs/`** via the Kaggle **Output** tab or **Save Version → Save & Run All (Commit)**.
 
 ---
 
