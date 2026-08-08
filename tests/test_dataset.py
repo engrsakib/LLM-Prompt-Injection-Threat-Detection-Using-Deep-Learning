@@ -154,3 +154,25 @@ def test_compute_per_class_metrics() -> None:
     assert metrics[0]["class"] == "A"
     assert "precision" in metrics[0]
     assert metrics[1]["recall"] == 1.0
+
+
+def test_compute_metrics_handles_missing_classes_in_report() -> None:
+    import numpy as np
+
+    from neuro_mri_xai.evaluation.metrics import compute_metrics
+
+    class_names = ["A", "B", "C"]
+    y_true = np.array([0, 0, 1, 1])
+    y_pred = np.array([0, 1, 1, 1])
+    y_prob = np.array(
+        [
+            [0.9, 0.05, 0.05],
+            [0.4, 0.5, 0.1],
+            [0.1, 0.8, 0.1],
+            [0.1, 0.7, 0.2],
+        ],
+    )
+
+    result = compute_metrics(y_true, y_pred, y_prob, class_names)
+    assert "C" in result["classification_report"]
+    assert result["per_class"][2]["support"] == 0

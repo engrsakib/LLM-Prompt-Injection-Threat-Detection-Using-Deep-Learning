@@ -97,6 +97,7 @@ def compute_metrics(
         "classification_report": classification_report(
             y_true,
             y_pred,
+            labels=list(range(len(class_names))),
             target_names=class_names,
             zero_division=0,
         ),
