@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 import pytest
+import torch
 
 from neuro_mri_xai.models import florence_reporter as fr
 
@@ -15,6 +16,22 @@ def reset_florence_patch_flag() -> None:
     fr._tokenizer_compat_patched = False
     yield
     fr._tokenizer_compat_patched = False
+
+
+def test_prepare_florence_inputs_aligns_float_dtype_to_model() -> None:
+    pytest.importorskip("torch")
+    model = SimpleNamespace()
+    model.dtype = torch.float16
+    model.parameters = lambda: iter([torch.tensor(1.0, dtype=torch.float16)])
+
+    raw = {
+        "input_ids": torch.tensor([[1, 2]], dtype=torch.long),
+        "pixel_values": torch.randn(1, 3, 224, 224, dtype=torch.float32),
+    }
+    prepared = fr._prepare_florence_inputs(raw, model, torch.device("cpu"))
+
+    assert prepared["input_ids"].dtype == torch.long
+    assert prepared["pixel_values"].dtype == torch.float16
 
 
 def test_patch_adds_additional_special_tokens_property() -> None:

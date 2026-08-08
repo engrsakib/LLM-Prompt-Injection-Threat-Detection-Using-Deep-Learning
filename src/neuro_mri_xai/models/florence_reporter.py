@@ -23,6 +23,34 @@ _florence_processor = None
 _tokenizer_compat_patched = False
 
 
+def _model_compute_dtype(model: torch.nn.Module) -> torch.dtype:
+    """Return the floating-point dtype used by model weights."""
+    model_dtype = getattr(model, "dtype", None)
+    if isinstance(model_dtype, torch.dtype):
+        return model_dtype
+    return next(model.parameters()).dtype
+
+
+def _prepare_florence_inputs(
+    inputs: object,
+    model: torch.nn.Module,
+    device: torch.device,
+) -> dict[str, torch.Tensor]:
+    """Move Florence inputs to model device and align float tensors with model dtype."""
+    compute_dtype = _model_compute_dtype(model)
+    prepared: dict[str, torch.Tensor] = {}
+
+    for key, value in dict(inputs).items():
+        if not isinstance(value, torch.Tensor):
+            continue
+        if value.is_floating_point():
+            prepared[key] = value.to(device=device, dtype=compute_dtype)
+        else:
+            prepared[key] = value.to(device=device)
+
+    return prepared
+
+
 def _additional_special_tokens_getter(tokenizer: object) -> list[str]:
     """Safe accessor compatible with slow and fast Hugging Face tokenizers."""
     stored = getattr(tokenizer, "_additional_special_tokens", None)
@@ -180,7 +208,8 @@ def generate_caption(
     device = next(model.parameters()).device
     if image.mode != "RGB":
         image = image.convert("RGB")
-    inputs = processor(text=task, images=image, return_tensors="pt").to(device)
+    raw_inputs = processor(text=task, images=image, return_tensors="pt")
+    inputs = _prepare_florence_inputs(raw_inputs, model, device)
     with torch.no_grad():
         generated = model.generate(
             input_ids=inputs["input_ids"],
