@@ -157,6 +157,20 @@ def _ensure_processor_image_metadata(
         processor.image_token_id = image_token_id
 
 
+def _task_prompt_with_image_marker(task: str) -> str:
+    """Prefix task with a single <image> marker when the processor expects it in text."""
+    if task.startswith(FLORENCE_IMAGE_TOKEN):
+        return task
+    return f"{FLORENCE_IMAGE_TOKEN}{task}"
+
+
+def _inputs_have_image_tokens(processor: object, inputs: object) -> bool:
+    input_ids = inputs.get("input_ids") if isinstance(inputs, dict) else None
+    if input_ids is None:
+        return False
+    return _count_florence_image_tokens(processor, input_ids) > 0
+
+
 def _manual_florence_prompt_inputs(
     processor: object,
     task: str,
@@ -207,6 +221,7 @@ def _build_florence_processor_inputs(
 ) -> dict[str, torch.Tensor]:
     """Build processor inputs with valid task prompt and image placeholder tokens."""
     normalized_task = _normalize_florence_task(task)
+    image_task = _task_prompt_with_image_marker(normalized_task)
     _ensure_processor_image_metadata(processor, model)
 
     def _call_processor(text: str | list[str], images: Image.Image | list[Image.Image]) -> object:
@@ -217,21 +232,22 @@ def _build_florence_processor_inputs(
             truncation=False,
         )
 
-    raw_inputs = _call_processor(normalized_task, image)
-    input_ids = raw_inputs.get("input_ids")
-    pixel_values = raw_inputs.get("pixel_values")
-    if input_ids is not None and _count_florence_image_tokens(processor, input_ids) > 0:
-        return dict(raw_inputs)
+    pixel_values: torch.Tensor | None = None
+    prompt_candidates = [normalized_task, image_task]
+    for prompt in prompt_candidates:
+        raw_inputs = _call_processor(prompt, image)
+        pixel_values = raw_inputs.get("pixel_values")
+        if _inputs_have_image_tokens(processor, raw_inputs):
+            return dict(raw_inputs)
 
-    logger.warning(
-        "Florence processor returned 0 image tokens for task %r; retrying list form",
-        normalized_task,
-    )
-    raw_inputs = _call_processor([normalized_task], [image])
-    input_ids = raw_inputs.get("input_ids")
-    pixel_values = raw_inputs.get("pixel_values")
-    if input_ids is not None and _count_florence_image_tokens(processor, input_ids) > 0:
-        return dict(raw_inputs)
+        logger.warning(
+            "Florence processor returned 0 image tokens for task %r; retrying list form",
+            prompt,
+        )
+        raw_inputs = _call_processor([prompt], [image])
+        pixel_values = raw_inputs.get("pixel_values")
+        if _inputs_have_image_tokens(processor, raw_inputs):
+            return dict(raw_inputs)
 
     manual = _manual_florence_prompt_inputs(
         processor,
@@ -240,9 +256,14 @@ def _build_florence_processor_inputs(
         pixel_values=pixel_values,
     )
     if manual is not None:
-        logger.info("Built Florence inputs via explicit image-token prompt for %r", normalized_task)
+        logger.info(
+            "Built Florence inputs via explicit image-token prompt for %r",
+            normalized_task,
+        )
         return manual
 
+    # Last resort: return image-prefixed processor output for downstream validation/logging.
+    raw_inputs = _call_processor(image_task, image)
     return dict(raw_inputs)
 
 
@@ -271,6 +292,17 @@ def _validate_florence_inputs(inputs: dict[str, torch.Tensor], processor: object
             f"input_ids shape={tuple(input_ids.shape)}, "
             f"pixel_values shape={tuple(pixel_values.shape)}"
         )
+
+    expected_tokens = getattr(processor, "num_image_tokens", None) or getattr(
+        processor, "image_seq_length", None
+    )
+    if isinstance(expected_tokens, int) and expected_tokens > 0:
+        if image_token_count != expected_tokens:
+            raise ValueError(
+                f"Florence image token mismatch: found {image_token_count} placeholder "
+                f"tokens in input_ids but processor expects {expected_tokens} to match "
+                f"image features"
+            )
 
 
 def _model_compute_dtype(model: torch.nn.Module) -> torch.dtype:
@@ -521,6 +553,33 @@ def _template_diagnostic_text(
     )
 
 
+def template_diagnostic_text(
+    predicted_class: str,
+    confidence: float,
+    config: Config,
+    *,
+    caption: str | None = None,
+    florence_unavailable: bool = False,
+) -> str:
+    """Rule-based diagnostic report text (Florence-independent fallback)."""
+    return _template_diagnostic_text(
+        predicted_class,
+        confidence,
+        config,
+        caption=caption,
+        florence_unavailable=florence_unavailable,
+    )
+
+
+def _safe_unload_florence_after_failure() -> None:
+    try:
+        unload_florence()
+    except Exception:
+        logger.debug("Florence unload after failure raised; ignoring", exc_info=True)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 def generate_caption(
     image: Image.Image, config: Config, task: str = "<MORE_DETAILED_CAPTION>"
 ) -> str | None:
@@ -547,11 +606,9 @@ def generate_caption(
                 num_beams=3,
             )
         return _decode_florence_caption(processor, generated, normalized_task)
-    except ValueError as exc:
-        logger.warning("Florence caption skipped due to invalid inputs (%s)", exc)
-        return None
     except Exception as exc:
-        logger.warning("Florence caption generation failed (%s)", exc)
+        logger.warning("Florence caption generation failed (%s); returning no caption", exc)
+        _safe_unload_florence_after_failure()
         return None
 
 
@@ -578,17 +635,31 @@ def generate_diagnostic_text(
     confidence: float,
     config: Config,
 ) -> str:
-    caption = generate_caption(image, config)
-    if caption is None:
-        return _template_diagnostic_text(
+    """Generate diagnostic narrative; never raises — falls back to template text on any error."""
+    try:
+        caption = generate_caption(image, config)
+        if caption is None:
+            return template_diagnostic_text(
+                predicted_class,
+                confidence,
+                config,
+                florence_unavailable=True,
+            )
+        return template_diagnostic_text(
+            predicted_class,
+            confidence,
+            config,
+            caption=caption,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Florence diagnostic text generation failed (%s); using template fallback",
+            exc,
+        )
+        _safe_unload_florence_after_failure()
+        return template_diagnostic_text(
             predicted_class,
             confidence,
             config,
             florence_unavailable=True,
         )
-    return _template_diagnostic_text(
-        predicted_class,
-        confidence,
-        config,
-        caption=caption,
-    )

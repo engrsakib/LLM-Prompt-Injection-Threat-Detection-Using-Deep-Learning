@@ -21,7 +21,11 @@ from neuro_mri_xai.config import load_config
 from neuro_mri_xai.data.dataset import ensure_dataset_available
 from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
 from neuro_mri_xai.explainability.pipeline import explain_sample
-from neuro_mri_xai.models.florence_reporter import generate_diagnostic_text, unload_florence
+from neuro_mri_xai.models.florence_reporter import (
+    generate_diagnostic_text,
+    template_diagnostic_text,
+    unload_florence,
+)
 from neuro_mri_xai.models.sam_roi import unload_sam
 from neuro_mri_xai.utils.cli import add_data_dir_argument
 from neuro_mri_xai.utils.paths import ensure_dir
@@ -108,6 +112,14 @@ def generate_report(
                 xai["confidence"],
                 config,
             )
+        except Exception as exc:
+            diagnostic_text = template_diagnostic_text(
+                xai["prediction"],
+                xai["confidence"],
+                config,
+                florence_unavailable=True,
+            )
+            print(f"Warning: Florence report generation failed ({exc}); using template fallback.")
         finally:
             unload_florence()
             empty_cuda_cache()

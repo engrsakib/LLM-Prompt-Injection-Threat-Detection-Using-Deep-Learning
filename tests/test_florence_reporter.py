@@ -129,6 +129,40 @@ def test_validate_florence_inputs_raises_on_zero_image_tokens() -> None:
         fr._validate_florence_inputs(inputs, processor)
 
 
+def test_task_prompt_with_image_marker() -> None:
+    assert fr._task_prompt_with_image_marker("<CAPTION>") == "<image><CAPTION>"
+    assert fr._task_prompt_with_image_marker("<image><CAPTION>") == "<image><CAPTION>"
+
+
+def test_build_florence_processor_inputs_uses_image_prefixed_prompt() -> None:
+    token_id = 7
+    image = mock.Mock()
+    calls: list[str | list[str]] = []
+
+    class StubProcessor:
+        image_token_id = token_id
+        image_token = "<image>"
+        num_image_tokens = 2
+        image_seq_length = 2
+
+        def __call__(self, *, text, images, return_tensors, truncation):
+            calls.append(text)
+            has_image_prefix = (
+                text == "<image><CAPTION>"
+                or (isinstance(text, list) and text == ["<image><CAPTION>"])
+            )
+            ids = torch.tensor([[token_id, token_id, 1, 2]]) if has_image_prefix else torch.tensor([[1, 2, 3]])
+            return {
+                "input_ids": ids,
+                "pixel_values": torch.randn(1, 3, 224, 224),
+            }
+
+    processor = StubProcessor()
+    inputs = fr._build_florence_processor_inputs(processor, "<CAPTION>", image)
+    assert "<image><CAPTION>" in calls or ["<image><CAPTION>"] in calls
+    assert fr._count_florence_image_tokens(processor, inputs["input_ids"]) > 0
+
+
 def test_build_florence_processor_inputs_with_stub_processor() -> None:
     token_id = 7
     image = mock.Mock()
@@ -201,6 +235,27 @@ def test_generate_diagnostic_text_falls_back_when_caption_unavailable() -> None:
     assert "Predicted diagnosis: Normal" in text
     assert "Florence-2 caption unavailable" in text
     assert "DISCLAIMER" in text
+
+
+def test_generate_diagnostic_text_never_raises_on_unexpected_error() -> None:
+    config = SimpleNamespace(get_class_names=lambda: ["Normal", "MS"])
+    image = mock.Mock()
+
+    with mock.patch.object(fr, "generate_caption", side_effect=RuntimeError("CUDA OOM")):
+        text = fr.generate_diagnostic_text(image, "Normal", 0.91, config)
+
+    assert "Predicted diagnosis: Normal" in text
+    assert "Florence-2 caption unavailable" in text
+
+
+def test_validate_florence_inputs_raises_on_token_count_mismatch() -> None:
+    processor = SimpleNamespace(image_token_id=99, num_image_tokens=65, image_seq_length=65)
+    inputs = {
+        "input_ids": torch.tensor([[99, 99, 1, 2]]),
+        "pixel_values": torch.randn(1, 3, 224, 224),
+    }
+    with pytest.raises(ValueError, match="image token mismatch"):
+        fr._validate_florence_inputs(inputs, processor)
 
 
 def test_load_florence_model_prefers_auto_model_for_causal_lm() -> None:
