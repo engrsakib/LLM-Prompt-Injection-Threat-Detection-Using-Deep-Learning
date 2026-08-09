@@ -18,9 +18,9 @@ from neuro_mri_xai.config import load_config
 from neuro_mri_xai.data import get_dataloaders
 from neuro_mri_xai.data.dataset import ensure_dataset_available
 from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
+from neuro_mri_xai.evaluation.embeddings import extract_embeddings
 from neuro_mri_xai.evaluation.metrics import (
     evaluate_classifier,
-    extract_embeddings,
     plot_roc_curves,
     run_sklearn_baselines,
 )
@@ -89,7 +89,14 @@ def run_evaluation(
 
     if export_xai or config.evaluation.export_batch_xai:
         max_n = xai_max_samples or config.evaluation.xai_max_samples
-        xai_out = export_xai_batch(model, config, class_names, figures_dir / "xai_batch", max_n)
+        xai_model, class_names = load_checkpoint_model(checkpoint_path, config)
+        xai_out = export_xai_batch(
+            xai_model,
+            config,
+            class_names,
+            figures_dir / "xai_batch",
+            max_n,
+        )
         print(f"Batch XAI exported: {xai_out['count']} samples -> {xai_out['output_dir']}")
 
     return results

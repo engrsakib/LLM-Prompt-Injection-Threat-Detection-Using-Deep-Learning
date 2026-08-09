@@ -156,35 +156,6 @@ def plot_roc_curves(
     plt.close(fig)
 
 
-@torch.no_grad()
-def extract_embeddings(
-    model: torch.nn.Module,
-    loader: DataLoader,
-    device: torch.device,
-) -> tuple[np.ndarray, np.ndarray]:
-    model.eval()
-    inner = model
-    for _ in range(3):
-        if hasattr(inner, "base_model"):
-            inner = inner.base_model
-        elif hasattr(inner, "model") and isinstance(inner.model, torch.nn.Module):
-            inner = inner.model
-        else:
-            break
-
-    if hasattr(inner, "head"):
-        inner.head = torch.nn.Identity()
-    features: list[np.ndarray] = []
-    labels: list[np.ndarray] = []
-    for images, lbls in loader:
-        feat = inner(images.to(device))
-        if feat.dim() > 2:
-            feat = feat.mean(dim=[2, 3]) if feat.dim() == 4 else feat.mean(dim=1)
-        features.append(feat.cpu().numpy())
-        labels.append(lbls.numpy())
-    return np.concatenate(features), np.concatenate(labels)
-
-
 def run_sklearn_baselines(X: np.ndarray, y: np.ndarray, seed: int = 42) -> dict[str, float]:
     X_train, X_test, y_train, y_test = train_test_split(
         X,
