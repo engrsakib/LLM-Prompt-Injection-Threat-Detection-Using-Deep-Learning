@@ -28,28 +28,13 @@ from neuro_mri_xai.data.transforms import get_val_transforms
 from neuro_mri_xai.explainability.attention_rollout import compute_attention_rollout
 from neuro_mri_xai.explainability.gradcam import compute_gradcam
 from neuro_mri_xai.explainability.pipeline import _save_heatmap_overlay
+from neuro_mri_xai.explainability.prediction import sample_prediction as _sample_prediction
 from neuro_mri_xai.explainability.sam_overlay import render_sam_constrained_overlay
 from neuro_mri_xai.models.sam_roi import resolve_roi_fn, unload_sam
 from neuro_mri_xai.utils.paths import ensure_dir
 from neuro_mri_xai.utils.vram import empty_cuda_cache
 
 logger = logging.getLogger(__name__)
-
-
-def _sample_prediction(output: torch.Tensor) -> tuple[int, float]:
-    """Return predicted class index and confidence for batch item 0."""
-    if output.dim() == 1:
-        logits = output.unsqueeze(0)
-    elif output.dim() == 2:
-        logits = output
-    else:
-        logits = output.reshape(output.size(0), -1)
-
-    probs = torch.softmax(logits, dim=-1)
-    sample_probs = probs[0]
-    pred_idx = int(sample_probs.argmax(dim=-1).item())
-    confidence = float(sample_probs[pred_idx].item())
-    return pred_idx, confidence
 
 
 def _get_test_sample_paths(config: Config, max_samples: int) -> list[tuple[Path, int]]:

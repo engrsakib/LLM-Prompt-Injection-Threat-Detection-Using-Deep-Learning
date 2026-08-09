@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from neuro_mri_xai.explainability.prediction import class_logits
 from neuro_mri_xai.models.classifier import get_gradcam_target_layer
 from neuro_mri_xai.models.swin_classifier import get_swin_target_layers
 
@@ -51,7 +52,14 @@ def compute_gradcam(
 
     try:
         tensor = tensor.clone().requires_grad_(True)
-        logits = model(tensor)
+        raw_logits = model(tensor)
+        logits = class_logits(raw_logits)
+        num_classes = logits.shape[1]
+        if not (0 <= target_class < num_classes):
+            raise ValueError(
+                f"target_class={target_class} is out of bounds for {num_classes} classes "
+                f"(logits shape {tuple(logits.shape)}, raw output shape {tuple(raw_logits.shape)})",
+            )
         score = logits[0, target_class]
         model.zero_grad(set_to_none=True)
         score.backward()

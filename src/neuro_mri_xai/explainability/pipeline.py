@@ -15,13 +15,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from PIL import Image
 
 from neuro_mri_xai.config import Config
 from neuro_mri_xai.data.transforms import get_val_transforms
 from neuro_mri_xai.explainability.attention_rollout import compute_attention_rollout
 from neuro_mri_xai.explainability.gradcam import compute_gradcam
+from neuro_mri_xai.explainability.prediction import sample_prediction
 from neuro_mri_xai.explainability.sam_overlay import render_sam_constrained_overlay
 from neuro_mri_xai.models.sam_roi import resolve_roi_fn, unload_sam
 from neuro_mri_xai.utils.paths import ensure_dir
@@ -79,10 +79,8 @@ def explain_sample(
 
     model.eval()
     with torch.no_grad():
-        logits = model(tensor)
-        probs = F.softmax(logits, dim=1)[0]
-        pred_idx = int(probs.argmax().item())
-        confidence = float(probs[pred_idx].item())
+        output = model(tensor)
+        pred_idx, confidence = sample_prediction(output)
     prediction = class_names[pred_idx] if pred_idx < len(class_names) else str(pred_idx)
 
     log_gpu_mem("XAI classification")
