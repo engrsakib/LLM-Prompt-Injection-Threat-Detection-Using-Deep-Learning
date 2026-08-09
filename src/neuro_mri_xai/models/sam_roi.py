@@ -107,6 +107,13 @@ def make_roi_fn(config: Config):
     return _roi
 
 
+def resolve_roi_fn(config: Config):
+    """Return SAM ROI preprocessor when enabled; otherwise None."""
+    if not config.sam.enabled:
+        return None
+    return make_roi_fn(config)
+
+
 def overlay_heatmap_on_mask(
     image_rgb: np.ndarray,
     heatmap: np.ndarray,

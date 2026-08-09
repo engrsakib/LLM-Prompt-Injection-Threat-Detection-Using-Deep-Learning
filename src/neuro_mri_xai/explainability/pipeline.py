@@ -23,7 +23,7 @@ from neuro_mri_xai.data.transforms import get_val_transforms
 from neuro_mri_xai.explainability.attention_rollout import compute_attention_rollout
 from neuro_mri_xai.explainability.gradcam import compute_gradcam
 from neuro_mri_xai.explainability.sam_overlay import render_sam_constrained_overlay
-from neuro_mri_xai.models.sam_roi import unload_sam
+from neuro_mri_xai.models.sam_roi import resolve_roi_fn, unload_sam
 from neuro_mri_xai.utils.paths import ensure_dir
 from neuro_mri_xai.utils.vram import empty_cuda_cache, log_gpu_mem
 
@@ -69,6 +69,9 @@ def explain_sample(
     device = next(model.parameters()).device
 
     pil_image = Image.open(image_path).convert("RGB")
+    roi_fn = resolve_roi_fn(config)
+    if roi_fn is not None:
+        pil_image = roi_fn(pil_image)
     image_rgb = np.array(pil_image)
 
     transform = get_val_transforms(config.dataset.image_size)

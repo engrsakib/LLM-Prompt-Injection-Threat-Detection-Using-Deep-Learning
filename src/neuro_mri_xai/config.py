@@ -57,7 +57,7 @@ class ModelConfig:
     num_classes: int = 8
     pretrained: bool = True
     drop_path_rate: float = 0.1
-    use_lora: bool = True
+    use_lora: bool = False
     lora_r: int = 8
     lora_alpha: int = 16
     lora_target_modules: list[str] = field(default_factory=lambda: ["qkv", "proj"])

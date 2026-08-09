@@ -85,7 +85,7 @@ def run_benchmark(
 
         cfg = load_config(config_path, data_dir=data_dir)
         cfg.model.backbone = backbone
-        _, _, test_loader, class_names = get_dataloaders(cfg, roi_fn=None)
+        _, _, test_loader, class_names = get_dataloaders(cfg)
         model, class_names = load_checkpoint_model(ckpt_path, cfg)
         eval_result = evaluate_classifier(model, test_loader, class_names, device)
 

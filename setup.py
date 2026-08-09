@@ -24,5 +24,6 @@ setup(
         "kaggle>=1.6.0",
         "kagglehub>=0.3.0",
         "einops>=0.7.0",
+        "segment-anything @ git+https://github.com/facebookresearch/segment-anything.git",
     ],
 )

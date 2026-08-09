@@ -25,7 +25,7 @@ from neuro_mri_xai.evaluation.metrics import (
     run_sklearn_baselines,
 )
 from neuro_mri_xai.explainability.batch_export import export_xai_batch
-from neuro_mri_xai.models.sam_roi import make_roi_fn, unload_sam
+from neuro_mri_xai.models.sam_roi import unload_sam
 from neuro_mri_xai.utils.cli import add_data_dir_argument
 from neuro_mri_xai.utils.paths import ensure_dir
 from neuro_mri_xai.utils.plotting import save_confusion_matrix
@@ -45,8 +45,7 @@ def run_evaluation(
     print(f"Using dataset: {config.dataset.data_dir}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    roi_fn = make_roi_fn(config) if config.sam.enabled else None
-    _, _, test_loader, _ = get_dataloaders(config, roi_fn=roi_fn)
+    _, _, test_loader, _ = get_dataloaders(config)
     if config.sam.enabled:
         unload_sam()
 
@@ -81,7 +80,7 @@ def run_evaluation(
     print(results["metrics"]["classification_report"])
 
     if config.evaluation.run_sklearn_baselines:
-        _, _, test_loader_emb, _ = get_dataloaders(config, roi_fn=roi_fn)
+        _, _, test_loader_emb, _ = get_dataloaders(config)
         X, y = extract_embeddings(model, test_loader_emb, device)
         baseline_results = run_sklearn_baselines(X, y, seed=config.dataset.seed)
         print("Sklearn baselines on Swin embeddings:", baseline_results)

@@ -37,3 +37,14 @@ def test_soft_voting_weighted() -> None:
     x = torch.randn(1, 3, 4, 4)
     probs = ensemble(x)
     assert probs.argmax(dim=1).item() in (0, 1)
+
+
+def test_evaluate_soft_voting_sequential_requires_checkpoints() -> None:
+    from torch.utils.data import DataLoader, TensorDataset
+
+    from neuro_mri_xai.config import Config
+    from neuro_mri_xai.models.ensemble import evaluate_soft_voting_sequential
+
+    loader = DataLoader(TensorDataset(torch.randn(4, 3, 8, 8), torch.tensor([0, 1, 0, 1])))
+    with pytest.raises(ValueError, match="At least one checkpoint"):
+        evaluate_soft_voting_sequential([], Config(), loader, ["A", "B"], torch.device("cpu"))

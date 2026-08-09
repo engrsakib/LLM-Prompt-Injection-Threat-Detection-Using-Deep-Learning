@@ -22,15 +22,14 @@ from neuro_mri_xai.config import Config
 from neuro_mri_xai.data.dataset import (
     MRIDataset,
     ensure_dataset_available,
-    stratified_split_indices,
+    get_test_indices,
 )
-from neuro_mri_xai.data.splits import build_group_ids
 from neuro_mri_xai.data.transforms import get_val_transforms
 from neuro_mri_xai.explainability.attention_rollout import compute_attention_rollout
 from neuro_mri_xai.explainability.gradcam import compute_gradcam
 from neuro_mri_xai.explainability.pipeline import _save_heatmap_overlay
 from neuro_mri_xai.explainability.sam_overlay import render_sam_constrained_overlay
-from neuro_mri_xai.models.sam_roi import unload_sam
+from neuro_mri_xai.models.sam_roi import resolve_roi_fn, unload_sam
 from neuro_mri_xai.utils.paths import ensure_dir
 from neuro_mri_xai.utils.vram import empty_cuda_cache
 
@@ -57,20 +56,7 @@ def _get_test_sample_paths(config: Config, max_samples: int) -> list[tuple[Path,
     data_dir = ensure_dataset_available(config)
     expected = config.get_class_names()
     base = MRIDataset(data_dir, transform=None, roi_fn=None, expected_classes=expected)
-    labels = [label for _, label in base.samples]
-    class_names = base.classes
-    groups = build_group_ids(base.samples, class_names)
-    _, _, test_idx = stratified_split_indices(
-        labels,
-        val_split=config.dataset.val_split,
-        test_split=max(config.dataset.test_split, 0.05),
-        seed=config.dataset.seed,
-        groups=groups,
-        split_strategy=config.dataset.split_strategy,
-        n_folds=1,
-        fold_index=0,
-    )
-
+    test_idx = get_test_indices(config)
     selected = test_idx[:max_samples] if max_samples > 0 else test_idx
     return [(base.samples[i][0], base.samples[i][1]) for i in selected]
 
@@ -86,6 +72,7 @@ def export_xai_batch(
     output_dir = ensure_dir(output_dir)
     device = next(model.parameters()).device
     transform = get_val_transforms(config.dataset.image_size)
+    roi_fn = resolve_roi_fn(config)
     samples = _get_test_sample_paths(config, max_samples)
 
     records: list[dict] = []
@@ -95,6 +82,8 @@ def export_xai_batch(
         stem = path.stem
         sample_dir = ensure_dir(output_dir / stem)
         pil_image = Image.open(path).convert("RGB")
+        if roi_fn is not None:
+            pil_image = roi_fn(pil_image)
         image_rgb = np.array(pil_image)
         tensor = transform(pil_image).unsqueeze(0).to(device)
 

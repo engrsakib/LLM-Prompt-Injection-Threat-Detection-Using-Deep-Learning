@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import html
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -43,12 +44,18 @@ def build_html_report(
     for label, path in figure_paths.items():
         if path and Path(path).exists():
             b64 = _img_to_base64(path)
-            figures_html += f'<div class="figure"><h3>{label.replace("_", " ").title()}</h3>'
-            figures_html += f'<img src="data:image/png;base64,{b64}" alt="{label}"/></div>'
+            safe_label = html.escape(label.replace("_", " ").title())
+            figures_html += f'<div class="figure"><h3>{safe_label}</h3>'
+            figures_html += (
+                f'<img src="data:image/png;base64,{b64}" alt="{safe_label}"/></div>'
+            )
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    safe_prediction = html.escape(prediction)
+    safe_image_name = html.escape(image_path.name)
+    safe_diagnostic = html.escape(diagnostic_text)
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"/>
-<title>MRI Diagnostic Report — {prediction}</title>
+<title>MRI Diagnostic Report — {safe_prediction}</title>
 <style>
 body {{ font-family: Georgia, serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }}
 h1 {{ color: #1a365d; }}
@@ -61,11 +68,11 @@ pre {{ white-space: pre-wrap; line-height: 1.6; }}
 <h1>Neurological MRI Diagnostic Report</h1>
 <p>Generated: {ts}</p>
 <div class="meta">
-<p><strong>Source image:</strong> {image_path.name}</p>
-<p><strong>Predicted class:</strong> {prediction}</p>
+<p><strong>Source image:</strong> {safe_image_name}</p>
+<p><strong>Predicted class:</strong> {safe_prediction}</p>
 <p><strong>Confidence:</strong> {confidence:.1%}</p>
 </div>
-<h2>Clinical Summary</h2><pre>{diagnostic_text}</pre>
+<h2>Clinical Summary</h2><pre>{safe_diagnostic}</pre>
 <h2>Explainability Visualizations</h2>{figures_html}
 <p class="disclaimer">This report is AI-generated for research and interpretability purposes only.
 It is not a substitute for professional medical diagnosis.</p>

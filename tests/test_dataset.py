@@ -9,16 +9,19 @@ import pytest
 import torch
 from PIL import Image
 
-from neuro_mri_xai.config import Config, DatasetConfig
+from neuro_mri_xai.config import Config, DatasetConfig, SamConfig
 from neuro_mri_xai.data.constants import EXPECTED_CLASS_NAMES, NUM_CLASSES
 from neuro_mri_xai.data.dataset import (
     MRIDataset,
     compute_class_weights,
     ensure_dataset_available,
+    get_dataloaders,
+    get_test_indices,
     resolve_data_dir,
     stratified_split_indices,
 )
 from neuro_mri_xai.data.transforms import get_transforms
+from neuro_mri_xai.models.sam_roi import resolve_roi_fn
 from neuro_mri_xai.utils.paths import resolve_dataset_root, resolve_imagefolder_root
 
 
@@ -140,6 +143,21 @@ def test_compute_class_weights_inverse_frequency() -> None:
     assert weights[0] < weights[1]
     assert torch.isclose(weights[0], torch.tensor(6.0 / (2.0 * 4.0)))
     assert torch.isclose(weights[1], torch.tensor(6.0 / (2.0 * 2.0)))
+
+
+def test_get_test_indices_matches_dataloader_split(tmp_path: Path) -> None:
+    _make_fake_dataset(tmp_path, n_per_class=20)
+    cfg = Config(
+        dataset=DatasetConfig(data_dir=tmp_path, test_split=0.1, val_split=0.1),
+        sam=SamConfig(enabled=False),
+    )
+    _, _, test_loader, _ = get_dataloaders(cfg)
+    assert set(get_test_indices(cfg)) == set(test_loader.dataset.indices)
+
+
+def test_resolve_roi_fn_disabled_when_sam_off() -> None:
+    cfg = Config(sam=SamConfig(enabled=False))
+    assert resolve_roi_fn(cfg) is None
 
 
 def test_compute_per_class_metrics() -> None:

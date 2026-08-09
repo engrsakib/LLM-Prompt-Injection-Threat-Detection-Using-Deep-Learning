@@ -2,7 +2,7 @@ dataset:
   source: "kagglehub"
   kagglehub_handle: "engrsakib02/neurological-disorders-mri-dataset-for-xai"
   kagglehub_fallback_handle: "alifatahi/multi-class-neurological-disorder-mcnd-dataset"
-  kaggle_dataset: "alifatahi/multi-class-neurological-disorder-mcnd-dataset"
+  kaggle_dataset: "engrsakib02/neurological-disorders-mri-dataset-for-xai"
   kaggle_data_subdir: "data"
   data_dir: "/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data"
   gdrive_path: "/content/drive/MyDrive/neuro-mri-data/data"

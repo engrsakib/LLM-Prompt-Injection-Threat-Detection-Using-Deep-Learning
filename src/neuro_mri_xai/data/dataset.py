@@ -282,13 +282,35 @@ def _resolve_split_indices(
     )
 
 
+def get_test_indices(config: Config) -> list[int]:
+    """Return test-set indices using the same split policy as ``get_dataloaders``."""
+    data_dir = ensure_dataset_available(config)
+    expected_classes = config.get_class_names()
+    base_dataset = MRIDataset(
+        root=data_dir,
+        transform=None,
+        roi_fn=None,
+        expected_classes=expected_classes,
+    )
+    labels = [label for _, label in base_dataset.samples]
+    _, _, test_idx = _resolve_split_indices(
+        labels,
+        base_dataset.samples,
+        base_dataset.classes,
+        config,
+    )
+    return test_idx
+
+
 def get_dataloaders(
     config: Config,
     roi_fn: Callable[[Image.Image], Image.Image] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader, list[str]]:
+    from neuro_mri_xai.models.sam_roi import resolve_roi_fn
+
     data_dir = ensure_dataset_available(config)
     image_size = config.dataset.image_size
-    use_roi = roi_fn if config.sam.enabled else None
+    use_roi = resolve_roi_fn(config) if roi_fn is None else roi_fn
     expected_classes = config.get_class_names()
 
     base_dataset = MRIDataset(

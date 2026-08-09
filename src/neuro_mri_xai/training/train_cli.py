@@ -40,9 +40,7 @@ def run_training(
     ensure_dataset_available(config)
     print(f"Using dataset: {config.dataset.data_dir}")
 
-    # SAM ROI is expensive during training; disable unless explicitly enabled via env.
-    roi_fn = None
-    train_loader, val_loader, _, class_names = get_dataloaders(config, roi_fn=roi_fn)
+    train_loader, val_loader, _, class_names = get_dataloaders(config)
 
     if not class_names:
         class_names = config.get_class_names()

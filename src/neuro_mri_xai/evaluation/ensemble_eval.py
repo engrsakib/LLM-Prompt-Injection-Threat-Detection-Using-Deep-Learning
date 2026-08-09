@@ -18,13 +18,14 @@ from neuro_mri_xai.config import load_config
 from neuro_mri_xai.data import get_dataloaders
 from neuro_mri_xai.data.dataset import ensure_dataset_available
 from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
-from neuro_mri_xai.evaluation.metrics import evaluate_classifier
 from neuro_mri_xai.explainability.batch_export import export_xai_batch
-from neuro_mri_xai.models.ensemble import build_soft_voting_ensemble
+from neuro_mri_xai.models.ensemble import evaluate_soft_voting_sequential
+from neuro_mri_xai.models.sam_roi import unload_sam
 from neuro_mri_xai.utils.cli import add_data_dir_argument
 from neuro_mri_xai.utils.paths import ensure_dir
 from neuro_mri_xai.utils.plotting import save_confusion_matrix
 from neuro_mri_xai.utils.seed import set_seed
+from neuro_mri_xai.utils.vram import empty_cuda_cache
 
 
 def run_ensemble_evaluation(
@@ -45,16 +46,19 @@ def run_ensemble_evaluation(
     if not checkpoint_paths:
         raise ValueError("Provide --checkpoints or set ensemble.checkpoint_paths in config")
 
-    models = []
     class_names = config.get_class_names()
-    for ckpt_path in checkpoint_paths:
-        model, class_names = load_checkpoint_model(ckpt_path, config)
-        models.append(model)
+    _, _, test_loader, _ = get_dataloaders(config)
+    if config.sam.enabled:
+        unload_sam()
 
-    ensemble = build_soft_voting_ensemble(models, weights=weights).to(device)
-    _, _, test_loader, _ = get_dataloaders(config, roi_fn=None)
-
-    results = evaluate_classifier(ensemble, test_loader, class_names, device)
+    results = evaluate_soft_voting_sequential(
+        checkpoint_paths,
+        config,
+        test_loader,
+        class_names,
+        device,
+        weights=weights,
+    )
     figures_dir = ensure_dir(config.evaluation.figures_dir)
 
     per_class = results["metrics"].get("per_class", [])
@@ -85,13 +89,19 @@ def run_ensemble_evaluation(
 
     if export_xai or config.evaluation.export_batch_xai:
         xai_dir = figures_dir / "xai_batch"
-        export_xai_batch(
-            models[0],
-            config,
-            class_names,
-            xai_dir,
-            max_samples=xai_max_samples or config.evaluation.xai_max_samples,
-        )
+        xai_model, _ = load_checkpoint_model(checkpoint_paths[0], config)
+        try:
+            export_xai_batch(
+                xai_model,
+                config,
+                class_names,
+                xai_dir,
+                max_samples=xai_max_samples or config.evaluation.xai_max_samples,
+            )
+        finally:
+            xai_model.cpu()
+            del xai_model
+            empty_cuda_cache()
 
     return results
 
