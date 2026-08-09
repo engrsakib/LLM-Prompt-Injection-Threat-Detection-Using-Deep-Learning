@@ -37,6 +37,22 @@ from neuro_mri_xai.utils.vram import empty_cuda_cache
 logger = logging.getLogger(__name__)
 
 
+def _sample_prediction(output: torch.Tensor) -> tuple[int, float]:
+    """Return predicted class index and confidence for batch item 0."""
+    if output.dim() == 1:
+        logits = output.unsqueeze(0)
+    elif output.dim() == 2:
+        logits = output
+    else:
+        logits = output.reshape(output.size(0), -1)
+
+    probs = torch.softmax(logits, dim=-1)
+    sample_probs = probs[0]
+    pred_idx = int(sample_probs.argmax(dim=-1).item())
+    confidence = float(sample_probs[pred_idx].item())
+    return pred_idx, confidence
+
+
 def _get_test_sample_paths(config: Config, max_samples: int) -> list[tuple[Path, int]]:
     data_dir = ensure_dataset_available(config)
     expected = config.get_class_names()
@@ -83,10 +99,8 @@ def export_xai_batch(
         tensor = transform(pil_image).unsqueeze(0).to(device)
 
         with torch.no_grad():
-            logits = model(tensor)
-            probs = torch.softmax(logits, dim=1)[0]
-            pred_idx = int(probs.argmax().item())
-            confidence = float(probs[pred_idx].item())
+            output = model(tensor)
+            pred_idx, confidence = _sample_prediction(output)
 
         gradcam = compute_gradcam(model, tensor, pred_idx)
         gradcam_path = _save_heatmap_overlay(
