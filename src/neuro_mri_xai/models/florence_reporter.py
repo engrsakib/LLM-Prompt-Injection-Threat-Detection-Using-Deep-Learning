@@ -23,6 +23,8 @@ FLORENCE_CAPTION_TASKS = frozenset(
 )
 FLORENCE_VQA_PREFIX = "<VQA>"
 DEFAULT_FLORENCE_CAPTION_TASK = "<MORE_DETAILED_CAPTION>"
+FLORENCE_IMAGE_TOKEN = "<image>"
+DEFAULT_FLORENCE_IMAGE_SEQ_LENGTH = 577
 
 _florence_model = None
 _florence_processor = None
@@ -71,7 +73,16 @@ def _resolve_image_token_id(processor: object) -> int | None:
         try:
             return int(tokenizer.convert_tokens_to_ids(image_token))
         except Exception:
-            return None
+            pass
+
+    for candidate in (FLORENCE_IMAGE_TOKEN, "<|image|>"):
+        try:
+            token_id = tokenizer.convert_tokens_to_ids(candidate)
+            unk_id = getattr(tokenizer, "unk_token_id", None)
+            if isinstance(token_id, int) and token_id != unk_id:
+                return token_id
+        except Exception:
+            continue
     return None
 
 
@@ -112,13 +123,91 @@ def _sync_florence_processor(processor: object, model: torch.nn.Module) -> None:
             processor.image_token_id = image_token_id
 
 
+def _ensure_processor_image_metadata(
+    processor: object,
+    model: torch.nn.Module | None = None,
+) -> None:
+    """Ensure processor exposes image token count/id required for multimodal prompts."""
+    if model is not None:
+        _sync_florence_processor(processor, model)
+
+    tokenizer = getattr(processor, "tokenizer", None)
+    if not getattr(processor, "image_token", None):
+        token = getattr(tokenizer, "image_token", None) if tokenizer is not None else None
+        processor.image_token = token or FLORENCE_IMAGE_TOKEN
+
+    num_image_tokens = getattr(processor, "num_image_tokens", None) or getattr(
+        processor, "image_seq_length", None
+    )
+    if num_image_tokens is None and model is not None:
+        model_config = getattr(model, "config", None)
+        if model_config is not None:
+            num_image_tokens = getattr(model_config, "image_seq_length", None)
+    if num_image_tokens is None:
+        image_processor = getattr(processor, "image_processor", None)
+        num_image_tokens = getattr(image_processor, "image_seq_length", None)
+    if num_image_tokens is None:
+        num_image_tokens = DEFAULT_FLORENCE_IMAGE_SEQ_LENGTH
+
+    processor.num_image_tokens = int(num_image_tokens)
+    processor.image_seq_length = int(num_image_tokens)
+
+    image_token_id = _resolve_image_token_id(processor)
+    if image_token_id is not None:
+        processor.image_token_id = image_token_id
+
+
+def _manual_florence_prompt_inputs(
+    processor: object,
+    task: str,
+    image: Image.Image,
+    pixel_values: torch.Tensor | None = None,
+) -> dict[str, torch.Tensor] | None:
+    """Build Florence inputs using native prompt + explicit image placeholder tokens."""
+    tokenizer = getattr(processor, "tokenizer", None)
+    image_token = getattr(processor, "image_token", FLORENCE_IMAGE_TOKEN)
+    num_image_tokens = getattr(processor, "num_image_tokens", None) or getattr(
+        processor, "image_seq_length", None
+    )
+    if tokenizer is None or not isinstance(num_image_tokens, int) or num_image_tokens <= 0:
+        return None
+
+    construct_prompts = getattr(processor, "_construct_prompts", None)
+    if callable(construct_prompts):
+        prompt_strings = construct_prompts([task])
+    else:
+        prompt_strings = [task]
+
+    bos_token = getattr(tokenizer, "bos_token", "") or ""
+    eos_token = getattr(tokenizer, "eos_token", "") or ""
+    expanded = [
+        image_token * num_image_tokens + bos_token + prompt + eos_token
+        for prompt in prompt_strings
+    ]
+    tokenized = tokenizer(expanded, return_tensors="pt", truncation=False)
+
+    if pixel_values is None:
+        image_processor = getattr(processor, "image_processor", None)
+        if image_processor is not None:
+            pixel_values = image_processor(image, return_tensors="pt")["pixel_values"]
+
+    fallback: dict[str, torch.Tensor] = dict(tokenized)
+    if pixel_values is not None:
+        fallback["pixel_values"] = pixel_values
+    if _count_florence_image_tokens(processor, fallback["input_ids"]) > 0:
+        return fallback
+    return None
+
+
 def _build_florence_processor_inputs(
     processor: object,
     task: str,
     image: Image.Image,
+    model: torch.nn.Module | None = None,
 ) -> dict[str, torch.Tensor]:
     """Build processor inputs with valid task prompt and image placeholder tokens."""
     normalized_task = _normalize_florence_task(task)
+    _ensure_processor_image_metadata(processor, model)
 
     def _call_processor(text: str | list[str], images: Image.Image | list[Image.Image]) -> object:
         return processor(
@@ -130,6 +219,7 @@ def _build_florence_processor_inputs(
 
     raw_inputs = _call_processor(normalized_task, image)
     input_ids = raw_inputs.get("input_ids")
+    pixel_values = raw_inputs.get("pixel_values")
     if input_ids is not None and _count_florence_image_tokens(processor, input_ids) > 0:
         return dict(raw_inputs)
 
@@ -139,42 +229,19 @@ def _build_florence_processor_inputs(
     )
     raw_inputs = _call_processor([normalized_task], [image])
     input_ids = raw_inputs.get("input_ids")
+    pixel_values = raw_inputs.get("pixel_values")
     if input_ids is not None and _count_florence_image_tokens(processor, input_ids) > 0:
         return dict(raw_inputs)
 
-    construct_prompts = getattr(processor, "_construct_prompts", None)
-    tokenizer = getattr(processor, "tokenizer", None)
-    image_token = getattr(processor, "image_token", None)
-    num_image_tokens = getattr(processor, "num_image_tokens", None) or getattr(
-        processor, "image_seq_length", None
+    manual = _manual_florence_prompt_inputs(
+        processor,
+        normalized_task,
+        image,
+        pixel_values=pixel_values,
     )
-
-    if (
-        callable(construct_prompts)
-        and tokenizer is not None
-        and isinstance(image_token, str)
-        and isinstance(num_image_tokens, int)
-        and num_image_tokens > 0
-    ):
-        prompt_strings = construct_prompts([normalized_task])
-        expanded = [
-            image_token * num_image_tokens
-            + getattr(tokenizer, "bos_token", "")
-            + prompt
-            + getattr(tokenizer, "eos_token", "")
-            for prompt in prompt_strings
-        ]
-        tokenized = tokenizer(expanded, return_tensors="pt", truncation=False)
-        pixel_values = raw_inputs.get("pixel_values")
-        if pixel_values is None:
-            image_processor = getattr(processor, "image_processor", None)
-            if image_processor is not None:
-                pixel_values = image_processor(image, return_tensors="pt")["pixel_values"]
-        fallback = dict(tokenized)
-        if pixel_values is not None:
-            fallback["pixel_values"] = pixel_values
-        if _count_florence_image_tokens(processor, fallback["input_ids"]) > 0:
-            return fallback
+    if manual is not None:
+        logger.info("Built Florence inputs via explicit image-token prompt for %r", normalized_task)
+        return manual
 
     return dict(raw_inputs)
 
@@ -352,12 +419,39 @@ def _load_florence_processor(model_id: str):
     return processor
 
 
+def _load_florence_model(model_id: str, dtype: torch.dtype, device: str) -> torch.nn.Module:
+    """Load Florence-2 with AutoModelForCausalLM (remote code) and class fallbacks."""
+    from transformers import AutoModelForCausalLM
+
+    load_kwargs = {
+        "trust_remote_code": True,
+        "torch_dtype": dtype,
+    }
+    try:
+        model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs)
+        logger.info("Loaded Florence-2 weights via AutoModelForCausalLM")
+        return model.to(device).eval()
+    except Exception as exc:
+        logger.warning(
+            "AutoModelForCausalLM.from_pretrained failed for %s (%s); trying Florence2ForConditionalGeneration",
+            model_id,
+            exc,
+        )
+
+    try:
+        from transformers import Florence2ForConditionalGeneration
+
+        model = Florence2ForConditionalGeneration.from_pretrained(model_id, **load_kwargs)
+        logger.info("Loaded Florence-2 weights via Florence2ForConditionalGeneration")
+        return model.to(device).eval()
+    except Exception as exc:
+        raise RuntimeError(f"Failed to load Florence-2 model from {model_id}") from exc
+
+
 def _load_florence(config: Config):
     global _florence_model, _florence_processor
     if _florence_model is not None:
         return _florence_model, _florence_processor
-
-    from transformers import Florence2ForConditionalGeneration
 
     _patch_tokenizer_additional_special_tokens()
 
@@ -366,13 +460,8 @@ def _load_florence(config: Config):
     dtype = torch.float16 if device == "cuda" else torch.float32
 
     processor = _load_florence_processor(model_id)
-    model = Florence2ForConditionalGeneration.from_pretrained(
-        model_id,
-        trust_remote_code=True,
-        torch_dtype=dtype,
-    ).to(device)
-    model.eval()
-    _sync_florence_processor(processor, model)
+    model = _load_florence_model(model_id, dtype=dtype, device=device)
+    _ensure_processor_image_metadata(processor, model)
 
     _florence_model, _florence_processor = model, processor
     return model, processor
@@ -385,27 +474,85 @@ def unload_florence() -> None:
         torch.cuda.empty_cache()
 
 
-def generate_caption(
-    image: Image.Image, config: Config, task: str = "<MORE_DETAILED_CAPTION>"
-) -> str:
-    model, processor = _load_florence(config)
-    device = next(model.parameters()).device
-    if image.mode != "RGB":
-        image = image.convert("RGB")
-    raw_inputs = _build_florence_processor_inputs(processor, task, image)
-    _validate_florence_inputs(raw_inputs, processor)
-    inputs = _prepare_florence_inputs(raw_inputs, model, device)
-    with torch.no_grad():
-        generated = model.generate(
-            input_ids=inputs["input_ids"],
-            pixel_values=inputs["pixel_values"],
-            max_new_tokens=256,
-            num_beams=3,
-        )
+def _decode_florence_caption(processor: object, generated: torch.Tensor, task: str) -> str:
     caption = processor.batch_decode(generated, skip_special_tokens=False)[0]
-    for token in ("<MORE_DETAILED_CAPTION>", "<CAPTION>", "<DETAILED_CAPTION>"):
+    for token in (
+        task,
+        DEFAULT_FLORENCE_CAPTION_TASK,
+        "<MORE_DETAILED_CAPTION>",
+        "<CAPTION>",
+        "<DETAILED_CAPTION>",
+    ):
         caption = caption.replace(token, "").strip()
     return caption
+
+
+def _template_diagnostic_text(
+    predicted_class: str,
+    confidence: float,
+    config: Config,
+    *,
+    caption: str | None = None,
+    florence_unavailable: bool = False,
+) -> str:
+    class_names = config.get_class_names()
+    class_context = ""
+    if predicted_class in class_names:
+        class_context = (
+            f" (class index {class_names.index(predicted_class) + 1}/{len(class_names)})"
+        )
+
+    disclaimer = (
+        "DISCLAIMER: This AI-generated report is for research and interpretability "
+        "purposes only. It is not a substitute for professional medical diagnosis."
+    )
+    if florence_unavailable or not caption:
+        visual = (
+            "Visual description: Florence-2 caption unavailable; refer to classifier "
+            "prediction and explainability figures above."
+        )
+    else:
+        visual = f"Visual description: {caption}"
+
+    return (
+        f"Predicted diagnosis: {predicted_class}{class_context} "
+        f"(confidence: {confidence:.1%})\n\n"
+        f"{visual}\n\n{disclaimer}"
+    )
+
+
+def generate_caption(
+    image: Image.Image, config: Config, task: str = "<MORE_DETAILED_CAPTION>"
+) -> str | None:
+    """Generate a Florence-2 caption, or None when tokenization/generation is unavailable."""
+    try:
+        model, processor = _load_florence(config)
+        device = next(model.parameters()).device
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        normalized_task = _normalize_florence_task(task)
+        raw_inputs = _build_florence_processor_inputs(
+            processor,
+            normalized_task,
+            image,
+            model=model,
+        )
+        _validate_florence_inputs(raw_inputs, processor)
+        inputs = _prepare_florence_inputs(raw_inputs, model, device)
+        with torch.no_grad():
+            generated = model.generate(
+                input_ids=inputs["input_ids"],
+                pixel_values=inputs["pixel_values"],
+                max_new_tokens=256,
+                num_beams=3,
+            )
+        return _decode_florence_caption(processor, generated, normalized_task)
+    except ValueError as exc:
+        logger.warning("Florence caption skipped due to invalid inputs (%s)", exc)
+        return None
+    except Exception as exc:
+        logger.warning("Florence caption generation failed (%s)", exc)
+        return None
 
 
 def generate_clinical_vqa(
@@ -417,7 +564,11 @@ def generate_clinical_vqa(
     answers: list[str] = []
     for question in questions:
         task = f"{FLORENCE_VQA_PREFIX}{question.strip()}"
-        answers.append(generate_caption(image, config, task=task))
+        caption = generate_caption(image, config, task=task)
+        answers.append(
+            caption
+            or "Answer unavailable (Florence-2 input validation or generation failed)."
+        )
     return answers
 
 
@@ -427,20 +578,17 @@ def generate_diagnostic_text(
     confidence: float,
     config: Config,
 ) -> str:
-    class_names = config.get_class_names()
-    class_context = ""
-    if predicted_class in class_names:
-        class_context = (
-            f" (class index {class_names.index(predicted_class) + 1}/{len(class_names)})"
-        )
-
     caption = generate_caption(image, config)
-    disclaimer = (
-        "DISCLAIMER: This AI-generated report is for research and interpretability "
-        "purposes only. It is not a substitute for professional medical diagnosis."
-    )
-    return (
-        f"Predicted diagnosis: {predicted_class}{class_context} "
-        f"(confidence: {confidence:.1%})\n\n"
-        f"Visual description: {caption}\n\n{disclaimer}"
+    if caption is None:
+        return _template_diagnostic_text(
+            predicted_class,
+            confidence,
+            config,
+            florence_unavailable=True,
+        )
+    return _template_diagnostic_text(
+        predicted_class,
+        confidence,
+        config,
+        caption=caption,
     )

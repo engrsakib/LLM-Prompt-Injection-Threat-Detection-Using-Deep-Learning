@@ -135,6 +135,9 @@ def test_build_florence_processor_inputs_with_stub_processor() -> None:
 
     class StubProcessor:
         image_token_id = token_id
+        image_token = "<image>"
+        num_image_tokens = 2
+        image_seq_length = 2
 
         def __call__(self, *, text, images, return_tensors, truncation):
             assert truncation is False
@@ -147,3 +150,73 @@ def test_build_florence_processor_inputs_with_stub_processor() -> None:
     inputs = fr._build_florence_processor_inputs(processor, "<CAPTION>", image)
     assert fr._count_florence_image_tokens(processor, inputs["input_ids"]) > 0
     assert inputs["pixel_values"].shape == (1, 3, 224, 224)
+
+
+def test_manual_florence_prompt_inputs_adds_image_tokens() -> None:
+    token_id = 11
+    image = mock.Mock()
+
+    class StubTokenizer:
+        bos_token = "<s>"
+        eos_token = "</s>"
+
+        def __call__(self, texts, return_tensors, truncation):
+            assert truncation is False
+            assert texts[0].startswith("<image><image>")
+            return {"input_ids": torch.tensor([[token_id, token_id, 5, 6]])}
+
+        def convert_tokens_to_ids(self, token: str) -> int:
+            return token_id if token == "<image>" else 0
+
+    class StubImageProcessor:
+        def __call__(self, img, return_tensors):
+            return {"pixel_values": torch.randn(1, 3, 8, 8)}
+
+    processor = SimpleNamespace(
+        tokenizer=StubTokenizer(),
+        image_token="<image>",
+        num_image_tokens=2,
+        image_seq_length=2,
+        image_token_id=token_id,
+        _construct_prompts=lambda tasks: list(tasks),
+        image_processor=StubImageProcessor(),
+    )
+
+    manual = fr._manual_florence_prompt_inputs(
+        processor,
+        "<MORE_DETAILED_CAPTION>",
+        image,
+    )
+    assert manual is not None
+    assert fr._count_florence_image_tokens(processor, manual["input_ids"]) == 2
+
+
+def test_generate_diagnostic_text_falls_back_when_caption_unavailable() -> None:
+    config = SimpleNamespace(get_class_names=lambda: ["Normal", "MS"])
+    image = mock.Mock()
+
+    with mock.patch.object(fr, "generate_caption", return_value=None):
+        text = fr.generate_diagnostic_text(image, "Normal", 0.91, config)
+
+    assert "Predicted diagnosis: Normal" in text
+    assert "Florence-2 caption unavailable" in text
+    assert "DISCLAIMER" in text
+
+
+def test_load_florence_model_prefers_auto_model_for_causal_lm() -> None:
+    pytest.importorskip("transformers")
+    model_stub = SimpleNamespace(to=lambda device: model_stub, eval=lambda: model_stub)
+    model_id = "microsoft/Florence-2-base"
+
+    with mock.patch(
+        "transformers.AutoModelForCausalLM.from_pretrained",
+        return_value=model_stub,
+    ) as mock_auto:
+        result = fr._load_florence_model(model_id, torch.float32, "cpu")
+
+    mock_auto.assert_called_once_with(
+        model_id,
+        trust_remote_code=True,
+        torch_dtype=torch.float32,
+    )
+    assert result is model_stub
