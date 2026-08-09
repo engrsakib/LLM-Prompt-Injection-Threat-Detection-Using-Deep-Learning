@@ -134,10 +134,13 @@ def test_task_prompt_with_image_marker() -> None:
     assert fr._task_prompt_with_image_marker("<image><CAPTION>") == "<image><CAPTION>"
 
 
-def test_build_florence_processor_inputs_uses_image_prefixed_prompt() -> None:
+def test_build_florence_processor_inputs_uses_task_only_prompt() -> None:
     token_id = 7
     image = mock.Mock()
     calls: list[str | list[str]] = []
+    model = SimpleNamespace(
+        config=SimpleNamespace(image_token_id=token_id, image_seq_length=2),
+    )
 
     class StubProcessor:
         image_token_id = token_id
@@ -147,25 +150,79 @@ def test_build_florence_processor_inputs_uses_image_prefixed_prompt() -> None:
 
         def __call__(self, *, text, images, return_tensors, truncation):
             calls.append(text)
-            has_image_prefix = (
-                text == "<image><CAPTION>"
-                or (isinstance(text, list) and text == ["<image><CAPTION>"])
-            )
-            ids = torch.tensor([[token_id, token_id, 1, 2]]) if has_image_prefix else torch.tensor([[1, 2, 3]])
+            is_task_only = text == "<CAPTION>" or (isinstance(text, list) and text == ["<CAPTION>"])
+            ids = torch.tensor([[token_id, token_id, 1, 2]]) if is_task_only else torch.tensor([[1, 2, 3]])
             return {
                 "input_ids": ids,
                 "pixel_values": torch.randn(1, 3, 224, 224),
             }
 
+        image_processor = SimpleNamespace(
+            __call__=lambda self, img, return_tensors: {"pixel_values": torch.randn(1, 3, 224, 224)}
+        )
+
     processor = StubProcessor()
-    inputs = fr._build_florence_processor_inputs(processor, "<CAPTION>", image)
-    assert "<image><CAPTION>" in calls or ["<image><CAPTION>"] in calls
-    assert fr._count_florence_image_tokens(processor, inputs["input_ids"]) > 0
+    inputs = fr._build_florence_processor_inputs(processor, "<CAPTION>", image, model=model)
+    assert "<CAPTION>" in calls or ["<CAPTION>"] in calls
+    assert fr._count_florence_image_tokens(processor, inputs["input_ids"], model) > 0
+
+
+def test_build_florence_processor_inputs_falls_back_to_direct_ids() -> None:
+    token_id = fr.DEFAULT_FLORENCE_IMAGE_TOKEN_ID
+    image = mock.Mock()
+    model = SimpleNamespace(
+        config=SimpleNamespace(image_token_id=token_id, image_seq_length=2),
+        get_image_features=lambda pv: torch.randn(1, 2, 64),
+    )
+
+    class StubTokenizer:
+        bos_token = "<s>"
+        eos_token = "</s>"
+        image_token = "<image>"
+
+        def convert_tokens_to_ids(self, token: str) -> int:
+            return token_id if token == "<image>" else 0
+
+        def __call__(self, text, add_special_tokens, return_tensors, truncation):
+            return {"input_ids": torch.tensor([[10, 11, 12]])}
+
+        def add_special_tokens(self, _payload: dict) -> None:
+            return None
+
+    class StubProcessor:
+        image_token_id = token_id
+        image_token = "<image>"
+        num_image_tokens = 2
+        image_seq_length = 2
+        tokenizer = StubTokenizer()
+        _construct_prompts = lambda self, tasks: list(tasks)
+
+        def __call__(self, *, text, images, return_tensors, truncation):
+            return {
+                "input_ids": torch.tensor([[1, 2, 3]]),
+                "pixel_values": torch.randn(1, 3, 224, 224),
+            }
+
+        image_processor = SimpleNamespace(
+            __call__=lambda self, img, return_tensors: {"pixel_values": torch.randn(1, 3, 224, 224)}
+        )
+
+    processor = StubProcessor()
+    inputs = fr._build_florence_processor_inputs(
+        processor,
+        "<MORE_DETAILED_CAPTION>",
+        image,
+        model=model,
+    )
+    assert fr._count_florence_image_tokens(processor, inputs["input_ids"], model) == 2
 
 
 def test_build_florence_processor_inputs_with_stub_processor() -> None:
     token_id = 7
     image = mock.Mock()
+    model = SimpleNamespace(
+        config=SimpleNamespace(image_token_id=token_id, image_seq_length=2),
+    )
 
     class StubProcessor:
         image_token_id = token_id
@@ -180,27 +237,38 @@ def test_build_florence_processor_inputs_with_stub_processor() -> None:
                 "pixel_values": torch.randn(1, 3, 224, 224),
             }
 
+        image_processor = SimpleNamespace(
+            __call__=lambda self, img, return_tensors: {"pixel_values": torch.randn(1, 3, 224, 224)}
+        )
+
     processor = StubProcessor()
-    inputs = fr._build_florence_processor_inputs(processor, "<CAPTION>", image)
-    assert fr._count_florence_image_tokens(processor, inputs["input_ids"]) > 0
+    inputs = fr._build_florence_processor_inputs(processor, "<CAPTION>", image, model=model)
+    assert fr._count_florence_image_tokens(processor, inputs["input_ids"], model) > 0
     assert inputs["pixel_values"].shape == (1, 3, 224, 224)
 
 
 def test_manual_florence_prompt_inputs_adds_image_tokens() -> None:
-    token_id = 11
+    token_id = fr.DEFAULT_FLORENCE_IMAGE_TOKEN_ID
     image = mock.Mock()
+    model = SimpleNamespace(
+        config=SimpleNamespace(image_token_id=token_id, image_seq_length=2),
+        get_image_features=lambda pv: torch.randn(1, 2, 64),
+    )
 
     class StubTokenizer:
         bos_token = "<s>"
         eos_token = "</s>"
+        image_token = "<image>"
 
-        def __call__(self, texts, return_tensors, truncation):
+        def __call__(self, text, add_special_tokens, return_tensors, truncation):
             assert truncation is False
-            assert texts[0].startswith("<image><image>")
-            return {"input_ids": torch.tensor([[token_id, token_id, 5, 6]])}
+            return {"input_ids": torch.tensor([[5, 6]])}
 
         def convert_tokens_to_ids(self, token: str) -> int:
             return token_id if token == "<image>" else 0
+
+        def add_special_tokens(self, _payload: dict) -> None:
+            return None
 
     class StubImageProcessor:
         def __call__(self, img, return_tensors):
@@ -220,9 +288,10 @@ def test_manual_florence_prompt_inputs_adds_image_tokens() -> None:
         processor,
         "<MORE_DETAILED_CAPTION>",
         image,
+        model,
     )
     assert manual is not None
-    assert fr._count_florence_image_tokens(processor, manual["input_ids"]) == 2
+    assert fr._count_florence_image_tokens(processor, manual["input_ids"], model) == 2
 
 
 def test_generate_diagnostic_text_falls_back_when_caption_unavailable() -> None:
@@ -249,13 +318,30 @@ def test_generate_diagnostic_text_never_raises_on_unexpected_error() -> None:
 
 
 def test_validate_florence_inputs_raises_on_token_count_mismatch() -> None:
-    processor = SimpleNamespace(image_token_id=99, num_image_tokens=65, image_seq_length=65)
+    token_id = 99
+    processor = SimpleNamespace(image_token_id=token_id, num_image_tokens=65, image_seq_length=65)
+    model = SimpleNamespace(
+        config=SimpleNamespace(image_token_id=token_id, image_seq_length=65),
+        get_image_features=lambda pv: torch.randn(1, 65, 64),
+    )
     inputs = {
         "input_ids": torch.tensor([[99, 99, 1, 2]]),
         "pixel_values": torch.randn(1, 3, 224, 224),
     }
     with pytest.raises(ValueError, match="image token mismatch"):
-        fr._validate_florence_inputs(inputs, processor)
+        fr._validate_florence_inputs(inputs, processor, model)
+
+
+def test_remap_florence_state_dict_keys() -> None:
+    state = {
+        "model.language_model.layers.0.weight": torch.tensor([1.0]),
+        "model.vision_tower.blocks.0.weight": torch.tensor([2.0]),
+        "language_model.layers.0.bias": torch.tensor([3.0]),
+    }
+    remapped = fr._remap_florence_state_dict_keys(state)
+    assert "language_model.model.layers.0.weight" in remapped
+    assert "vision_tower.blocks.0.weight" in remapped
+    assert "language_model.model.layers.0.bias" in remapped
 
 
 def test_load_florence_model_prefers_auto_model_for_causal_lm() -> None:

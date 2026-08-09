@@ -25,6 +25,7 @@ FLORENCE_VQA_PREFIX = "<VQA>"
 DEFAULT_FLORENCE_CAPTION_TASK = "<MORE_DETAILED_CAPTION>"
 FLORENCE_IMAGE_TOKEN = "<image>"
 DEFAULT_FLORENCE_IMAGE_SEQ_LENGTH = 577
+DEFAULT_FLORENCE_IMAGE_TOKEN_ID = 51289
 
 _florence_model = None
 _florence_processor = None
@@ -55,7 +56,54 @@ def _normalize_florence_task(task: str) -> str:
     return DEFAULT_FLORENCE_CAPTION_TASK
 
 
-def _resolve_image_token_id(processor: object) -> int | None:
+def _resolve_model_image_token_id(model: torch.nn.Module | None) -> int | None:
+    if model is None:
+        return None
+    config = getattr(model, "config", None)
+    if config is not None:
+        token_id = getattr(config, "image_token_id", None)
+        if isinstance(token_id, int):
+            return token_id
+    return DEFAULT_FLORENCE_IMAGE_TOKEN_ID
+
+
+def _ensure_image_token_on_tokenizer(tokenizer: object, model: torch.nn.Module | None = None) -> int:
+    """Ensure tokenizer/processor expose Florence `<image>` token id (51289 by default)."""
+    target_id = _resolve_model_image_token_id(model) or DEFAULT_FLORENCE_IMAGE_TOKEN_ID
+    image_token = getattr(tokenizer, "image_token", None) or FLORENCE_IMAGE_TOKEN
+
+    unk_id = getattr(tokenizer, "unk_token_id", None)
+    current_id = None
+    try:
+        current_id = int(tokenizer.convert_tokens_to_ids(image_token))
+    except Exception:
+        current_id = None
+
+    if current_id is None or (unk_id is not None and current_id == unk_id):
+        add_tokens = getattr(tokenizer, "add_special_tokens", None)
+        if callable(add_tokens):
+            add_tokens({"additional_special_tokens": [image_token]})
+        current_id = int(tokenizer.convert_tokens_to_ids(image_token))
+
+    if current_id != target_id:
+        # Prefer model config id — Florence-2 expects a fixed placeholder id in input_ids.
+        logger.debug(
+            "Tokenizer image token id %s differs from model config %s; using model id",
+            current_id,
+            target_id,
+        )
+        current_id = target_id
+
+    tokenizer.image_token = image_token
+    tokenizer.image_token_id = current_id
+    return current_id
+
+
+def _resolve_image_token_id(processor: object, model: torch.nn.Module | None = None) -> int | None:
+    model_id = _resolve_model_image_token_id(model)
+    if model_id is not None:
+        return model_id
+
     token_id = getattr(processor, "image_token_id", None)
     if isinstance(token_id, int):
         return token_id
@@ -86,9 +134,13 @@ def _resolve_image_token_id(processor: object) -> int | None:
     return None
 
 
-def _count_florence_image_tokens(processor: object, input_ids: torch.Tensor) -> int:
+def _count_florence_image_tokens(
+    processor: object,
+    input_ids: torch.Tensor,
+    model: torch.nn.Module | None = None,
+) -> int:
     """Count image placeholder tokens in tokenized input_ids."""
-    image_token_id = _resolve_image_token_id(processor)
+    image_token_id = _resolve_image_token_id(processor, model)
     if image_token_id is None:
         return 0
     return int((input_ids == image_token_id).sum().item())
@@ -118,9 +170,78 @@ def _sync_florence_processor(processor: object, model: torch.nn.Module) -> None:
         if image_token is not None and not hasattr(processor, "image_token"):
             processor.image_token = image_token
 
-        image_token_id = _resolve_image_token_id(processor)
+        image_token_id = _resolve_image_token_id(processor, model)
         if image_token_id is not None:
             processor.image_token_id = image_token_id
+
+
+def _pixel_values_from_image(processor: object, image: Image.Image) -> torch.Tensor:
+    image_processor = getattr(processor, "image_processor", None)
+    if image_processor is None:
+        raise ValueError("Florence processor missing image_processor")
+    return image_processor(image, return_tensors="pt")["pixel_values"]
+
+
+@torch.no_grad()
+def _infer_image_feature_token_count(
+    model: torch.nn.Module,
+    pixel_values: torch.Tensor,
+) -> int | None:
+    """Infer placeholder count from vision features (matches get_placeholder_mask)."""
+    try:
+        if hasattr(model, "get_image_features"):
+            features = model.get_image_features(pixel_values)
+        elif hasattr(model, "model") and hasattr(model.model, "get_image_features"):
+            features = model.model.get_image_features(pixel_values)
+        elif hasattr(model, "encode_image"):
+            features = model.encode_image(pixel_values)
+        else:
+            return None
+        if isinstance(features, tuple):
+            features = features[0]
+        if hasattr(features, "pooler_output") and features.pooler_output is not None:
+            tensor = features.pooler_output
+        elif hasattr(features, "last_hidden_state"):
+            tensor = features.last_hidden_state
+        elif isinstance(features, torch.Tensor):
+            tensor = features
+        else:
+            return None
+        if tensor.dim() < 2:
+            return None
+        return int(tensor.shape[0] * tensor.shape[1])
+    except Exception as exc:
+        logger.debug("Could not infer Florence image feature count (%s)", exc)
+        return None
+
+
+def _resolve_num_image_tokens(
+    processor: object,
+    model: torch.nn.Module | None,
+    pixel_values: torch.Tensor | None,
+) -> int:
+    """Resolve how many `<image>` placeholders the vision tower expects."""
+    if model is not None and pixel_values is not None:
+        inferred = _infer_image_feature_token_count(model, pixel_values)
+        if inferred is not None and inferred > 0:
+            return inferred
+
+    for source in (
+        getattr(processor, "num_image_tokens", None),
+        getattr(processor, "image_seq_length", None),
+        getattr(getattr(processor, "image_processor", None), "image_seq_length", None),
+    ):
+        if isinstance(source, int) and source > 0:
+            return source
+
+    if model is not None:
+        model_config = getattr(model, "config", None)
+        if model_config is not None:
+            seq_len = getattr(model_config, "image_seq_length", None)
+            if isinstance(seq_len, int) and seq_len > 0:
+                return seq_len
+
+    return DEFAULT_FLORENCE_IMAGE_SEQ_LENGTH
 
 
 def _ensure_processor_image_metadata(
@@ -132,29 +253,55 @@ def _ensure_processor_image_metadata(
         _sync_florence_processor(processor, model)
 
     tokenizer = getattr(processor, "tokenizer", None)
-    if not getattr(processor, "image_token", None):
-        token = getattr(tokenizer, "image_token", None) if tokenizer is not None else None
-        processor.image_token = token or FLORENCE_IMAGE_TOKEN
+    if tokenizer is not None:
+        token_id = _ensure_image_token_on_tokenizer(tokenizer, model)
+        processor.image_token = getattr(tokenizer, "image_token", FLORENCE_IMAGE_TOKEN)
+        processor.image_token_id = token_id
+    elif not getattr(processor, "image_token", None):
+        processor.image_token = FLORENCE_IMAGE_TOKEN
 
-    num_image_tokens = getattr(processor, "num_image_tokens", None) or getattr(
-        processor, "image_seq_length", None
-    )
-    if num_image_tokens is None and model is not None:
-        model_config = getattr(model, "config", None)
-        if model_config is not None:
-            num_image_tokens = getattr(model_config, "image_seq_length", None)
-    if num_image_tokens is None:
-        image_processor = getattr(processor, "image_processor", None)
-        num_image_tokens = getattr(image_processor, "image_seq_length", None)
-    if num_image_tokens is None:
-        num_image_tokens = DEFAULT_FLORENCE_IMAGE_SEQ_LENGTH
-
+    num_image_tokens = _resolve_num_image_tokens(processor, model, pixel_values=None)
     processor.num_image_tokens = int(num_image_tokens)
     processor.image_seq_length = int(num_image_tokens)
 
-    image_token_id = _resolve_image_token_id(processor)
+    image_token_id = _resolve_image_token_id(processor, model)
     if image_token_id is not None:
         processor.image_token_id = image_token_id
+
+
+def _construct_florence_prompt_text(processor: object, task: str) -> str:
+    construct_prompts = getattr(processor, "_construct_prompts", None)
+    if callable(construct_prompts):
+        return construct_prompts([task])[0]
+    return task
+
+
+def _build_input_ids_with_image_placeholders(
+    processor: object,
+    model: torch.nn.Module,
+    task: str,
+    num_image_tokens: int,
+) -> torch.Tensor:
+    """Insert ``num_image_tokens`` copies of ``model.config.image_token_id`` before the text prompt."""
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        raise ValueError("Florence processor missing tokenizer")
+
+    image_token_id = _ensure_image_token_on_tokenizer(tokenizer, model)
+    processor.image_token_id = image_token_id
+
+    prompt_text = _construct_florence_prompt_text(processor, task)
+    bos_token = getattr(tokenizer, "bos_token", "") or ""
+    eos_token = getattr(tokenizer, "eos_token", "") or ""
+    text_ids = tokenizer(
+        bos_token + prompt_text + eos_token,
+        add_special_tokens=False,
+        return_tensors="pt",
+        truncation=False,
+    )["input_ids"][0]
+
+    prefix = torch.full((num_image_tokens,), image_token_id, dtype=torch.long)
+    return torch.cat([prefix, text_ids], dim=0).unsqueeze(0)
 
 
 def _task_prompt_with_image_marker(task: str) -> str:
@@ -164,53 +311,51 @@ def _task_prompt_with_image_marker(task: str) -> str:
     return f"{FLORENCE_IMAGE_TOKEN}{task}"
 
 
-def _inputs_have_image_tokens(processor: object, inputs: object) -> bool:
+def _inputs_have_image_tokens(
+    processor: object,
+    inputs: object,
+    model: torch.nn.Module | None = None,
+) -> bool:
     input_ids = inputs.get("input_ids") if isinstance(inputs, dict) else None
     if input_ids is None:
         return False
-    return _count_florence_image_tokens(processor, input_ids) > 0
+    return _count_florence_image_tokens(processor, input_ids, model) > 0
 
 
 def _manual_florence_prompt_inputs(
     processor: object,
     task: str,
     image: Image.Image,
+    model: torch.nn.Module,
     pixel_values: torch.Tensor | None = None,
 ) -> dict[str, torch.Tensor] | None:
-    """Build Florence inputs using native prompt + explicit image placeholder tokens."""
-    tokenizer = getattr(processor, "tokenizer", None)
-    image_token = getattr(processor, "image_token", FLORENCE_IMAGE_TOKEN)
-    num_image_tokens = getattr(processor, "num_image_tokens", None) or getattr(
-        processor, "image_seq_length", None
-    )
-    if tokenizer is None or not isinstance(num_image_tokens, int) or num_image_tokens <= 0:
+    """Build Florence inputs with explicit image placeholder token ids in input_ids."""
+    if pixel_values is None:
+        try:
+            pixel_values = _pixel_values_from_image(processor, image)
+        except Exception as exc:
+            logger.debug("Manual Florence prompt could not build pixel_values (%s)", exc)
+            return None
+
+    num_image_tokens = _resolve_num_image_tokens(processor, model, pixel_values)
+    processor.num_image_tokens = int(num_image_tokens)
+    processor.image_seq_length = int(num_image_tokens)
+
+    try:
+        input_ids = _build_input_ids_with_image_placeholders(
+            processor,
+            model,
+            task,
+            num_image_tokens,
+        )
+    except Exception as exc:
+        logger.debug("Direct Florence input_ids construction failed (%s)", exc)
         return None
 
-    construct_prompts = getattr(processor, "_construct_prompts", None)
-    if callable(construct_prompts):
-        prompt_strings = construct_prompts([task])
-    else:
-        prompt_strings = [task]
+    if _count_florence_image_tokens(processor, input_ids, model) <= 0:
+        return None
 
-    bos_token = getattr(tokenizer, "bos_token", "") or ""
-    eos_token = getattr(tokenizer, "eos_token", "") or ""
-    expanded = [
-        image_token * num_image_tokens + bos_token + prompt + eos_token
-        for prompt in prompt_strings
-    ]
-    tokenized = tokenizer(expanded, return_tensors="pt", truncation=False)
-
-    if pixel_values is None:
-        image_processor = getattr(processor, "image_processor", None)
-        if image_processor is not None:
-            pixel_values = image_processor(image, return_tensors="pt")["pixel_values"]
-
-    fallback: dict[str, torch.Tensor] = dict(tokenized)
-    if pixel_values is not None:
-        fallback["pixel_values"] = pixel_values
-    if _count_florence_image_tokens(processor, fallback["input_ids"]) > 0:
-        return fallback
-    return None
+    return {"input_ids": input_ids, "pixel_values": pixel_values}
 
 
 def _build_florence_processor_inputs(
@@ -220,8 +365,10 @@ def _build_florence_processor_inputs(
     model: torch.nn.Module | None = None,
 ) -> dict[str, torch.Tensor]:
     """Build processor inputs with valid task prompt and image placeholder tokens."""
+    if model is None:
+        raise ValueError("Florence model is required to build multimodal inputs")
+
     normalized_task = _normalize_florence_task(task)
-    image_task = _task_prompt_with_image_marker(normalized_task)
     _ensure_processor_image_metadata(processor, model)
 
     def _call_processor(text: str | list[str], images: Image.Image | list[Image.Image]) -> object:
@@ -233,41 +380,50 @@ def _build_florence_processor_inputs(
         )
 
     pixel_values: torch.Tensor | None = None
-    prompt_candidates = [normalized_task, image_task]
-    for prompt in prompt_candidates:
-        raw_inputs = _call_processor(prompt, image)
-        pixel_values = raw_inputs.get("pixel_values")
-        if _inputs_have_image_tokens(processor, raw_inputs):
-            return dict(raw_inputs)
+    try:
+        pixel_values = _pixel_values_from_image(processor, image)
+    except Exception as exc:
+        logger.debug("Could not precompute pixel_values (%s)", exc)
 
-        logger.warning(
-            "Florence processor returned 0 image tokens for task %r; retrying list form",
-            prompt,
-        )
-        raw_inputs = _call_processor([prompt], [image])
-        pixel_values = raw_inputs.get("pixel_values")
-        if _inputs_have_image_tokens(processor, raw_inputs):
-            return dict(raw_inputs)
+    # Native Florence2Processor expects task-only text (e.g. "<MORE_DETAILED_CAPTION>").
+    for prompt in (normalized_task, [normalized_task]):
+        try:
+            images_arg: Image.Image | list[Image.Image] = image if isinstance(prompt, str) else [image]
+            raw_inputs = _call_processor(prompt, images_arg)
+            if pixel_values is None:
+                pixel_values = raw_inputs.get("pixel_values")
+            if _inputs_have_image_tokens(processor, raw_inputs, model):
+                result = dict(raw_inputs)
+                if pixel_values is not None and result.get("pixel_values") is None:
+                    result["pixel_values"] = pixel_values
+                return result
+        except Exception as exc:
+            logger.debug("Florence processor call failed for %r (%s)", prompt, exc)
 
     manual = _manual_florence_prompt_inputs(
         processor,
         normalized_task,
         image,
+        model,
         pixel_values=pixel_values,
     )
     if manual is not None:
         logger.info(
-            "Built Florence inputs via explicit image-token prompt for %r",
+            "Built Florence inputs via explicit image-token ids for %r",
             normalized_task,
         )
         return manual
 
-    # Last resort: return image-prefixed processor output for downstream validation/logging.
-    raw_inputs = _call_processor(image_task, image)
-    return dict(raw_inputs)
+    raise ValueError(
+        f"Could not construct Florence inputs with image placeholder tokens for task {normalized_task!r}"
+    )
 
 
-def _validate_florence_inputs(inputs: dict[str, torch.Tensor], processor: object) -> None:
+def _validate_florence_inputs(
+    inputs: dict[str, torch.Tensor],
+    processor: object,
+    model: torch.nn.Module | None = None,
+) -> None:
     """Verify pixel_values and image placeholder tokens before generation."""
     pixel_values = inputs.get("pixel_values")
     input_ids = inputs.get("input_ids")
@@ -285,7 +441,7 @@ def _validate_florence_inputs(inputs: dict[str, torch.Tensor], processor: object
     if input_ids is None:
         raise ValueError("Florence inputs missing input_ids")
 
-    image_token_count = _count_florence_image_tokens(processor, input_ids)
+    image_token_count = _count_florence_image_tokens(processor, input_ids, model)
     if image_token_count == 0:
         raise ValueError(
             "Florence input_ids contain 0 image tokens; "
@@ -293,16 +449,13 @@ def _validate_florence_inputs(inputs: dict[str, torch.Tensor], processor: object
             f"pixel_values shape={tuple(pixel_values.shape)}"
         )
 
-    expected_tokens = getattr(processor, "num_image_tokens", None) or getattr(
-        processor, "image_seq_length", None
-    )
-    if isinstance(expected_tokens, int) and expected_tokens > 0:
-        if image_token_count != expected_tokens:
-            raise ValueError(
-                f"Florence image token mismatch: found {image_token_count} placeholder "
-                f"tokens in input_ids but processor expects {expected_tokens} to match "
-                f"image features"
-            )
+    expected_tokens = _resolve_num_image_tokens(processor, model, pixel_values)
+    if expected_tokens > 0 and image_token_count != expected_tokens:
+        raise ValueError(
+            f"Florence image token mismatch: found {image_token_count} placeholder "
+            f"tokens in input_ids but vision encoder expects {expected_tokens} to match "
+            f"image features"
+        )
 
 
 def _model_compute_dtype(model: torch.nn.Module) -> torch.dtype:
@@ -451,6 +604,49 @@ def _load_florence_processor(model_id: str):
     return processor
 
 
+def _remap_florence_state_dict_keys(state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    """Reconcile fine-tuned checkpoint prefixes with Hugging Face Florence-2 modules."""
+    if not state_dict:
+        return state_dict
+
+    remapped: dict[str, torch.Tensor] = {}
+    for key, value in state_dict.items():
+        new_key = key
+        if key.startswith("model.language_model."):
+            new_key = "language_model.model." + key[len("model.language_model.") :]
+        elif key.startswith("model.vision_tower."):
+            new_key = "vision_tower." + key[len("model.vision_tower.") :]
+        elif key.startswith("model.image_projection."):
+            new_key = "image_projection." + key[len("model.image_projection.") :]
+        elif key.startswith("language_model.") and not key.startswith("language_model.model."):
+            suffix = key[len("language_model.") :]
+            if suffix.startswith(("layers.", "embed_tokens.", "norm.", "lm_head.")):
+                new_key = "language_model.model." + suffix
+        remapped[new_key] = value
+    return remapped
+
+
+def _load_florence_state_dict_with_remap(
+    model: torch.nn.Module,
+    state_dict: dict[str, torch.Tensor],
+) -> None:
+    """Load a state dict after prefix remapping; log missing/unexpected keys."""
+    remapped = _remap_florence_state_dict_keys(state_dict)
+    load_result = model.load_state_dict(remapped, strict=False)
+    missing = getattr(load_result, "missing_keys", None) or []
+    unexpected = getattr(load_result, "unexpected_keys", None) or []
+    if missing or unexpected:
+        logger.warning(
+            "Florence state dict load: missing=%d unexpected=%d (after key remap)",
+            len(missing),
+            len(unexpected),
+        )
+        if missing:
+            logger.debug("Florence missing keys (first 10): %s", missing[:10])
+        if unexpected:
+            logger.debug("Florence unexpected keys (first 10): %s", unexpected[:10])
+
+
 def _load_florence_model(model_id: str, dtype: torch.dtype, device: str) -> torch.nn.Module:
     """Load Florence-2 with AutoModelForCausalLM (remote code) and class fallbacks."""
     from transformers import AutoModelForCausalLM
@@ -596,7 +792,7 @@ def generate_caption(
             image,
             model=model,
         )
-        _validate_florence_inputs(raw_inputs, processor)
+        _validate_florence_inputs(raw_inputs, processor, model)
         inputs = _prepare_florence_inputs(raw_inputs, model, device)
         with torch.no_grad():
             generated = model.generate(
