@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import base64
 import html
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from neuro_mri_xai.evaluation.checkpoint import load_checkpoint_model
 from neuro_mri_xai.explainability.pipeline import explain_sample
 from neuro_mri_xai.models.florence_reporter import (
     generate_diagnostic_text,
+    reset_florence_cache,
     template_diagnostic_text,
     unload_florence,
 )
@@ -30,6 +32,8 @@ from neuro_mri_xai.models.sam_roi import unload_sam
 from neuro_mri_xai.utils.cli import add_data_dir_argument
 from neuro_mri_xai.utils.paths import ensure_dir
 from neuro_mri_xai.utils.vram import empty_cuda_cache, log_gpu_mem
+
+logger = logging.getLogger(__name__)
 
 
 def _img_to_base64(path: str | Path) -> str:
@@ -105,6 +109,7 @@ def generate_report(
     pil_image = Image.open(image_path).convert("RGB")
     use_florence = config.florence.enabled and not skip_florence
     if use_florence:
+        reset_florence_cache()
         try:
             diagnostic_text = generate_diagnostic_text(
                 pil_image,
@@ -113,13 +118,16 @@ def generate_report(
                 config,
             )
         except Exception as exc:
+            logger.warning(
+                "Florence report generation failed (%s); using template fallback",
+                exc,
+            )
             diagnostic_text = template_diagnostic_text(
                 xai["prediction"],
                 xai["confidence"],
                 config,
                 florence_unavailable=True,
             )
-            print(f"Warning: Florence report generation failed ({exc}); using template fallback.")
         finally:
             unload_florence()
             empty_cuda_cache()

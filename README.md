@@ -163,7 +163,7 @@ model/
 │   │   ├── batch_export.py           # Batch XAI export for test set
 │   │   └── xai_cli.py                # Single-image / batch XAI CLI
 │   └── report.py                     # HTML diagnostic report generator
-├── tests/                            # 59+ unit & smoke tests
+├── tests/                            # 80+ unit & smoke tests
 └── outputs/                          # Checkpoints, figures, reports (gitignored)
     ├── checkpoints/
     ├── figures/
@@ -199,7 +199,71 @@ The notebook contains **11 cells total** — one Markdown intro plus **10 execut
 2. **Add Input → Datasets** → attach [`engrsakib02/neurological-disorders-mri-dataset-for-xai`](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai).
 3. Run all Code cells sequentially.
 
-### Workflow Overview
+### Updating an Existing Kaggle Session (cache + git pull)
+
+If you already cloned this repo in a previous Kaggle run and need **fresh Python code** (e.g., Florence-2 fixes), run the cell below **before** re-running downstream cells.
+
+> **Important:** Kaggle keeps imported modules in memory. Deleting `__pycache__` and pulling git does **not** reload already-imported packages. After this cell completes, you **must** manually restart the kernel:
+>
+> **Kernel / Runtime → Restart Session** (then re-run from Cell 1 or Cell 3 onward).
+
+```python
+# Refresh repo: clear bytecode cache, then pull latest main
+import subprocess
+from pathlib import Path
+
+PROJECT_DIR = Path("/kaggle/working/Neurological-MRI-XAI-Pipeline")
+assert PROJECT_DIR.exists(), "Clone the repo first (Cell 2) before updating."
+
+# Step 1: Clean compiled Python cache & temporary bytecode
+subprocess.run(
+    [
+        "find",
+        str(PROJECT_DIR),
+        "-type",
+        "d",
+        "-name",
+        "__pycache__",
+        "-exec",
+        "rm",
+        "-rf",
+        "{}",
+        "+",
+    ],
+    check=False,
+)
+subprocess.run(
+    ["find", str(PROJECT_DIR), "-name", "*.pyc", "-delete"],
+    check=False,
+)
+
+# Step 2: Pull the latest updates from Git
+subprocess.run(["git", "-C", str(PROJECT_DIR), "pull"], check=True)
+
+print("Cache cleared and git pull complete.")
+print("ACTION REQUIRED: Kernel / Runtime -> Restart Session, then re-run cells.")
+```
+
+Equivalent **notebook shell** one-liners (paste into a Code cell if you prefer `!` syntax):
+
+```bash
+# Step 1: Clean compiled Python cache & temporary bytecode
+!find /kaggle/working/Neurological-MRI-XAI-Pipeline -type d -name "__pycache__" -exec rm -rf {} +
+!find /kaggle/working/Neurological-MRI-XAI-Pipeline -name "*.pyc" -delete
+
+# Step 2: Pull the latest updates from Git
+!cd /kaggle/working/Neurological-MRI-XAI-Pipeline && git pull
+```
+
+**Optional — Florence-2 smoke test** after restart (Cell 3+ installed deps):
+
+```bash
+python scripts/smoke_test_florence.py --config configs/default.yaml
+```
+
+Or use `importlib.reload(neuro_mri_xai.models.florence_reporter)` inside a dedicated test cell (see `scripts/smoke_test_florence.py`).
+
+---
 
 | Step | Cell | Purpose | Key Outputs |
 |------|------|---------|-------------|
@@ -257,9 +321,8 @@ if not PROJECT_DIR.exists():
     subprocess.run(["git", "clone", REPO_URL, str(PROJECT_DIR)], check=True)
 else:
     print(f"Repo already exists at {PROJECT_DIR}")
-    # Optional: pull latest fixes (Florence-2 prompt, Swin partial FT, patient splits)
-    subprocess.run(["git", "-C", str(PROJECT_DIR), "fetch", "origin"], check=True)
-    subprocess.run(["git", "-C", str(PROJECT_DIR), "pull", "origin", "main"], check=True)
+    print("Tip: For code updates, run the 'Updating an Existing Kaggle Session' cache+pull cell,")
+    print("     then Kernel / Runtime -> Restart Session before continuing.")
 
 os.chdir(PROJECT_DIR)
 print(f"Working directory: {os.getcwd()}")

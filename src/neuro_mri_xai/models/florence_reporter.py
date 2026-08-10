@@ -182,6 +182,14 @@ def _pixel_values_from_image(processor: object, image: Image.Image) -> torch.Ten
     return image_processor(image, return_tensors="pt")["pixel_values"]
 
 
+def _model_compute_dtype(model: torch.nn.Module) -> torch.dtype:
+    """Return the floating-point dtype used by model weights."""
+    model_dtype = getattr(model, "dtype", None)
+    if isinstance(model_dtype, torch.dtype):
+        return model_dtype
+    return next(model.parameters()).dtype
+
+
 @torch.no_grad()
 def _infer_image_feature_token_count(
     model: torch.nn.Module,
@@ -189,6 +197,13 @@ def _infer_image_feature_token_count(
 ) -> int | None:
     """Infer placeholder count from vision features (matches get_placeholder_mask)."""
     try:
+        device = next(model.parameters()).device
+        compute_dtype = _model_compute_dtype(model)
+        if pixel_values.is_floating_point():
+            pixel_values = pixel_values.to(device=device, dtype=compute_dtype)
+        else:
+            pixel_values = pixel_values.to(device=device)
+
         if hasattr(model, "get_image_features"):
             features = model.get_image_features(pixel_values)
         elif hasattr(model, "model") and hasattr(model.model, "get_image_features"):
@@ -458,14 +473,6 @@ def _validate_florence_inputs(
         )
 
 
-def _model_compute_dtype(model: torch.nn.Module) -> torch.dtype:
-    """Return the floating-point dtype used by model weights."""
-    model_dtype = getattr(model, "dtype", None)
-    if isinstance(model_dtype, torch.dtype):
-        return model_dtype
-    return next(model.parameters()).dtype
-
-
 def _prepare_florence_inputs(
     inputs: object,
     model: torch.nn.Module,
@@ -657,8 +664,11 @@ def _load_florence_model(model_id: str, dtype: torch.dtype, device: str) -> torc
     }
     try:
         model = AutoModelForCausalLM.from_pretrained(model_id, **load_kwargs)
-        logger.info("Loaded Florence-2 weights via AutoModelForCausalLM")
-        return model.to(device).eval()
+        logger.info("Loaded Florence-2 weights via AutoModelForCausalLM (trust_remote_code=True)")
+        model = model.to(device).eval()
+        if device == "cpu" and dtype == torch.float16:
+            model = model.float()
+        return model
     except Exception as exc:
         logger.warning(
             "AutoModelForCausalLM.from_pretrained failed for %s (%s); trying Florence2ForConditionalGeneration",
@@ -670,8 +680,13 @@ def _load_florence_model(model_id: str, dtype: torch.dtype, device: str) -> torc
         from transformers import Florence2ForConditionalGeneration
 
         model = Florence2ForConditionalGeneration.from_pretrained(model_id, **load_kwargs)
-        logger.info("Loaded Florence-2 weights via Florence2ForConditionalGeneration")
-        return model.to(device).eval()
+        logger.info(
+            "Loaded Florence-2 weights via Florence2ForConditionalGeneration (trust_remote_code=True)"
+        )
+        model = model.to(device).eval()
+        if device == "cpu" and dtype == torch.float16:
+            model = model.float()
+        return model
     except Exception as exc:
         raise RuntimeError(f"Failed to load Florence-2 model from {model_id}") from exc
 
@@ -696,10 +711,16 @@ def _load_florence(config: Config):
 
 
 def unload_florence() -> None:
+    """Release cached Florence model/processor and free GPU memory."""
     global _florence_model, _florence_processor
     _florence_model = _florence_processor = None
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
+
+def reset_florence_cache() -> None:
+    """Clear in-process Florence singleton (call before importlib.reload on Kaggle)."""
+    unload_florence()
 
 
 def _decode_florence_caption(processor: object, generated: torch.Tensor, task: str) -> str:
