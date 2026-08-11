@@ -207,6 +207,7 @@ def stratified_split_indices(
     split_strategy: str = "image",
     n_folds: int = 5,
     fold_index: int = 0,
+    min_class_support: int = 1,
 ) -> tuple[list[int], list[int], list[int]]:
     """Split indices into train/val/test (image- or patient-level stratified)."""
     return resolve_split_indices(
@@ -218,7 +219,31 @@ def stratified_split_indices(
         split_strategy=split_strategy,
         n_folds=n_folds,
         fold_index=fold_index,
+        min_class_support=min_class_support,
     )
+
+
+def _log_label_distribution(
+    name: str,
+    labels: list[int],
+    indices: list[int],
+    class_names: list[str],
+) -> None:
+    counts = _split_class_counts_for_indices(labels, indices, len(class_names))
+    summary = ", ".join(f"{class_names[i]}={counts[i]}" for i in range(len(class_names)))
+    logger.info("%s split class counts: %s", name, summary)
+
+
+def _split_class_counts_for_indices(
+    labels: list[int],
+    indices: list[int],
+    num_classes: int,
+) -> list[int]:
+    counts = [0] * num_classes
+    for idx in indices:
+        if 0 <= labels[idx] < num_classes:
+            counts[labels[idx]] += 1
+    return counts
 
 
 def compute_class_weights(
@@ -259,6 +284,7 @@ def get_train_labels(config: Config) -> list[int]:
         split_strategy=config.dataset.split_strategy,
         n_folds=config.dataset.n_folds,
         fold_index=config.dataset.fold_index,
+        min_class_support=config.dataset.min_class_support_per_split,
     )
     return [labels[i] for i in train_idx]
 
@@ -279,6 +305,7 @@ def _resolve_split_indices(
         split_strategy=config.dataset.split_strategy,
         n_folds=config.dataset.n_folds,
         fold_index=config.dataset.fold_index,
+        min_class_support=config.dataset.min_class_support_per_split,
     )
 
 
@@ -305,18 +332,24 @@ def get_test_indices(config: Config) -> list[int]:
 def get_dataloaders(
     config: Config,
     roi_fn: Callable[[Image.Image], Image.Image] | None = None,
+    *,
+    use_sam_roi: bool = False,
 ) -> tuple[DataLoader, DataLoader, DataLoader, list[str]]:
+    """Build train/val/test loaders. SAM ROI is off by default (XAI-only; very slow in training)."""
     from neuro_mri_xai.models.sam_roi import resolve_roi_fn
 
     data_dir = ensure_dataset_available(config)
     image_size = config.dataset.image_size
-    use_roi = resolve_roi_fn(config) if roi_fn is None else roi_fn
+    if use_sam_roi and roi_fn is None:
+        roi_fn = resolve_roi_fn(config)
+    elif not use_sam_roi:
+        roi_fn = None
     expected_classes = config.get_class_names()
 
     base_dataset = MRIDataset(
         root=data_dir,
         transform=None,
-        roi_fn=use_roi,
+        roi_fn=roi_fn,
         expected_classes=expected_classes,
     )
     class_names = base_dataset.classes
@@ -328,12 +361,15 @@ def get_dataloaders(
         class_names,
         config,
     )
+    _log_label_distribution("train", labels, train_idx, class_names)
+    _log_label_distribution("val", labels, val_idx, class_names)
+    _log_label_distribution("test", labels, test_idx, class_names)
 
     train_ds = Subset(
         MRIDataset(
             data_dir,
             get_train_transforms(image_size),
-            roi_fn=use_roi,
+            roi_fn=roi_fn,
             expected_classes=expected_classes,
         ),
         train_idx,
@@ -342,7 +378,7 @@ def get_dataloaders(
         MRIDataset(
             data_dir,
             get_val_transforms(image_size),
-            roi_fn=use_roi,
+            roi_fn=roi_fn,
             expected_classes=expected_classes,
         ),
         val_idx,
@@ -351,19 +387,21 @@ def get_dataloaders(
         MRIDataset(
             data_dir,
             get_test_transforms(image_size),
-            roi_fn=use_roi,
+            roi_fn=roi_fn,
             expected_classes=expected_classes,
         ),
         test_idx,
     )
 
+    pin_memory = config.dataset.pin_memory and torch.cuda.is_available()
     loader_kwargs: dict = {
         "batch_size": config.dataset.batch_size,
         "num_workers": config.dataset.num_workers,
-        "pin_memory": torch.cuda.is_available(),
+        "pin_memory": pin_memory,
     }
     if config.dataset.num_workers > 0:
         loader_kwargs["persistent_workers"] = True
+        loader_kwargs["prefetch_factor"] = config.dataset.prefetch_factor
 
     train_loader = DataLoader(train_ds, shuffle=True, **loader_kwargs)
     val_loader = DataLoader(val_ds, shuffle=False, **loader_kwargs)

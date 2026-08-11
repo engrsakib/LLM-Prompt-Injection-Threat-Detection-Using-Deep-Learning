@@ -87,12 +87,85 @@ def _split_groups(
     )
 
 
+def _split_class_counts(labels: list[int], indices: list[int], num_classes: int) -> list[int]:
+    counts = [0] * num_classes
+    for idx in indices:
+        label = labels[idx]
+        if 0 <= label < num_classes:
+            counts[label] += 1
+    return counts
+
+
+def _classes_missing_support(
+    labels: list[int],
+    indices: list[int],
+    num_classes: int,
+    min_support: int,
+) -> list[int]:
+    counts = _split_class_counts(labels, indices, num_classes)
+    return [cls_idx for cls_idx, count in enumerate(counts) if count < min_support]
+
+
+def image_stratified_holdout_split(
+    labels: list[int],
+    val_split: float,
+    test_split: float,
+    seed: int,
+) -> tuple[list[int], list[int], list[int]]:
+    """Image-level stratified 80/10/10 split (may include slice leakage across groups)."""
+    indices = list(range(len(labels)))
+    train_val_idx, test_idx = train_test_split(
+        indices,
+        test_size=test_split,
+        stratify=labels,
+        random_state=seed,
+    )
+    val_ratio = val_split / max(1.0 - test_split, 1e-6)
+    train_labels = [labels[i] for i in train_val_idx]
+    train_idx, val_idx = train_test_split(
+        train_val_idx,
+        test_size=val_ratio,
+        stratify=train_labels,
+        random_state=seed,
+    )
+    pseudo_groups = [str(i) for i in range(len(labels))]
+    _log_split_stats(
+        "image stratified holdout",
+        pseudo_groups,
+        labels,
+        train_idx,
+        val_idx,
+        test_idx,
+    )
+    return train_idx, val_idx, test_idx
+
+
+def _patient_split_needs_fallback(
+    labels: list[int],
+    train_idx: list[int],
+    val_idx: list[int],
+    test_idx: list[int],
+    min_class_support: int,
+) -> list[int]:
+    """Return class indices under-represented in val or test after patient split."""
+    if min_class_support <= 0:
+        return []
+    num_classes = len(set(labels))
+    missing: set[int] = set()
+    for split_indices in (val_idx, test_idx):
+        missing.update(
+            _classes_missing_support(labels, split_indices, num_classes, min_class_support)
+        )
+    return sorted(missing)
+
+
 def patient_stratified_holdout_split(
     labels: list[int],
     groups: list[str],
     val_split: float,
     test_split: float,
     seed: int,
+    min_class_support: int = 1,
 ) -> tuple[list[int], list[int], list[int]]:
     """Split at group level with class stratification (zero patient leakage)."""
     group_to_indices: dict[str, list[int]] = defaultdict(list)
@@ -135,6 +208,22 @@ def patient_stratified_holdout_split(
     val_idx = _expand_group_indices(group_to_indices, val_groups)
     test_idx = _expand_group_indices(group_to_indices, test_groups)
 
+    missing = _patient_split_needs_fallback(
+        labels,
+        train_idx,
+        val_idx,
+        test_idx,
+        min_class_support,
+    )
+    if missing:
+        logger.warning(
+            "Patient split left classes with <%d val/test samples: %s; "
+            "falling back to image-level stratified split",
+            min_class_support,
+            missing,
+        )
+        return image_stratified_holdout_split(labels, val_split, test_split, seed)
+
     _log_split_stats("patient holdout", groups, labels, train_idx, val_idx, test_idx)
     return train_idx, val_idx, test_idx
 
@@ -174,6 +263,7 @@ def stratified_split_indices(
     split_strategy: str = "image",
     n_folds: int = 5,
     fold_index: int = 0,
+    min_class_support: int = 1,
 ) -> tuple[list[int], list[int], list[int]]:
     """Dispatch image-level or patient-level stratified splitting."""
     strategy = split_strategy.lower()
@@ -182,24 +272,22 @@ def stratified_split_indices(
             raise ValueError("Patient-level split requires group IDs for each sample")
         if n_folds > 1:
             return patient_stratified_kfold_split(labels, groups, n_folds, fold_index, seed)
-        return patient_stratified_holdout_split(labels, groups, val_split, test_split, seed)
+        return patient_stratified_holdout_split(
+            labels,
+            groups,
+            val_split,
+            test_split,
+            seed,
+            min_class_support=min_class_support,
+        )
 
-    indices = list(range(len(labels)))
-    train_val_idx, test_idx = train_test_split(
-        indices,
-        test_size=test_split,
-        stratify=labels,
-        random_state=seed,
-    )
-    val_ratio = val_split / (1.0 - test_split)
-    train_labels = [labels[i] for i in train_val_idx]
-    train_idx, val_idx = train_test_split(
-        train_val_idx,
-        test_size=val_ratio,
-        stratify=train_labels,
-        random_state=seed,
-    )
-    return train_idx, val_idx, test_idx
+    if strategy == "stratified":
+        strategy = "image"
+
+    if strategy != "image":
+        logger.warning("Unknown split_strategy %r; using image-level stratified split", strategy)
+
+    return image_stratified_holdout_split(labels, val_split, test_split, seed)
 
 
 def _log_split_stats(

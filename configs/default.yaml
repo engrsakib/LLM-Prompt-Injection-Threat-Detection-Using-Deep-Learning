@@ -10,9 +10,12 @@ dataset:
   test_split: 0.1
   seed: 42
   image_size: 224
-  batch_size: 16
-  num_workers: 2
+  batch_size: 32
+  num_workers: 4
+  pin_memory: true
+  prefetch_factor: 2
   split_strategy: "patient"
+  min_class_support_per_split: 1
   n_folds: 1
   fold_index: 0
   class_names:
@@ -38,7 +41,7 @@ model:
   lora_dropout: 0.1
 
 sam:
-  enabled: true
+  enabled: false
   checkpoint: "sam_vit_b_01ec64.pth"
   model_type: "vit_b"
   weights_dir: "weights"
@@ -58,11 +61,11 @@ training:
   log_dir: "outputs/logs"
   use_amp: true
   use_cosine_scheduler: true
-  freeze_early_backbone: true
+  freeze_early_backbone: false
   use_class_weights: true
 
 vram:
-  max_batch_size: 16
+  max_batch_size: 32
   sam_on_cpu: false
   sequential_models: true
   empty_cache_between: true

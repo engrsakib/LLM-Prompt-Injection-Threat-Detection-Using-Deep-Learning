@@ -94,8 +94,9 @@ class Trainer:
         total = 0
 
         for images, labels in loader:
-            images = images.to(self.device)
-            labels = labels.to(self.device)
+            non_blocking = self.device.type == "cuda"
+            images = images.to(self.device, non_blocking=non_blocking)
+            labels = labels.to(self.device, non_blocking=non_blocking)
 
             with torch.set_grad_enabled(train):
                 with torch.amp.autocast(

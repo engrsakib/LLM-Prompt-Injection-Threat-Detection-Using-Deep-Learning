@@ -42,11 +42,14 @@ class DatasetConfig:
     test_split: float = 0.1
     seed: int = 42
     image_size: int = 224
-    batch_size: int = 16
-    num_workers: int = 2
+    batch_size: int = 32
+    num_workers: int = 4
+    pin_memory: bool = True
+    prefetch_factor: int = 2
     data_dir: Path = field(default_factory=lambda: Path("data"))
     class_names: list[str] = field(default_factory=lambda: list(EXPECTED_CLASS_NAMES))
     split_strategy: str = "patient"
+    min_class_support_per_split: int = 1
     n_folds: int = 1
     fold_index: int = 0
 
@@ -67,7 +70,7 @@ class ModelConfig:
 
 @dataclass
 class SamConfig:
-    enabled: bool = True
+    enabled: bool = False
     checkpoint: str = "sam_vit_b_01ec64.pth"
     model_type: str = "vit_b"
     weights_dir: str = "weights"
@@ -91,7 +94,7 @@ class TrainingConfig:
     log_dir: Path = field(default_factory=lambda: Path("outputs/logs"))
     use_amp: bool = True
     use_cosine_scheduler: bool = True
-    freeze_early_backbone: bool = True
+    freeze_early_backbone: bool = False
     use_class_weights: bool = True
 
 
@@ -131,7 +134,7 @@ class ReportConfig:
 
 @dataclass
 class VramConfig:
-    max_batch_size: int = 16
+    max_batch_size: int = 32
     sam_on_cpu: bool = False
     sequential_models: bool = True
     empty_cache_between: bool = True
