@@ -8,7 +8,7 @@ data:
   dataset: neuralchemy/prompt-injection-Threat-Matrix
   config: multiclass
   processed_dir: data/processed
-  train_file: train_augmented.parquet
+  train_file: train_adversarial.parquet
 output_dir: outputs/
 mlflow:
   tracking_uri: file:./mlruns

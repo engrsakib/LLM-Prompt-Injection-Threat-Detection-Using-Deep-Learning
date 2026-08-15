@@ -117,6 +117,16 @@ data/
         └── dedup_report.json
 ```
 
+## Phase 3 Finalization
+
+| Feature | Output |
+|---------|--------|
+| Technique subsets (encoding, role_play, tool_abuse) | `subsets/technique_*_{split}.parquet` |
+| Adversarial paraphrase (intent preserved) | `train_adversarial.parquet` |
+| Cross-split leakage audit | `reports/leakage_report.json` |
+| Reproducibility appendix | `docs/REPRODUCIBILITY.md` + SHA-256 hashes |
+| Kaggle-ready package | `kaggle_package.zip` |
+
 ## Phase 2 Enrichment
 
 Phase 2 runs after Phase 1 and produces paper-quality training artifacts.
@@ -169,3 +179,4 @@ Each run generates:
 |---------|------|---------|
 | 1.0.0 | 2026-08-15 | Phase-1 pipeline: ingest, clean, dedup, validate, parquet export |
 | 2.0.0 | 2026-08-15 | Phase-2 enrichment: obfuscation, severity buckets, ambiguity subsets, balancing, augmentation, MLflow |
+| 3.0.0 | 2026-08-15 | Phase-3 finalization: technique subsets, adversarial paraphrase, leakage audit, reproducibility, Kaggle package |

@@ -24,6 +24,17 @@ phase2:
     enabled: true
     experiment_name: data-engineering
 
+phase3:
+  enabled: true
+  docs_dir: docs
+  leakage_near_threshold: 0.85
+  adversarial_paraphrase:
+    enabled: true
+    max_variants_per_row: 1
+  mlflow:
+    enabled: true
+    experiment_name: data-engineering
+
 output:
   processed_dir: data/processed
   reports_dir: data/processed/reports

@@ -1,4 +1,4 @@
-"""CLI entrypoint for Phase-1 data preparation."""
+"""CLI entrypoint for dataset preparation phases."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import logging
 import sys
 
 from src.data.enrich import Phase2Config, run_phase2_enrichment
+from src.data.finalize import Phase3Config, run_phase3_finalization
 from src.data.pipeline import PipelineConfig, run_prepare_pipeline
 
 
@@ -29,9 +30,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--phase",
-        choices=("1", "2", "all"),
+        choices=("1", "2", "3", "all"),
         default="all",
-        help="Run Phase-1 only, Phase-2 only, or both.",
+        help="Run Phase-1, Phase-2, Phase-3, or all phases.",
     )
     parser.add_argument(
         "--verbose",
@@ -59,6 +60,13 @@ def main(argv: list[str] | None = None) -> int:
         print("Phase-2 enrichment completed.")
         if result.get("mlflow_run_id"):
             print(f"MLflow run ID: {result['mlflow_run_id']}")
+
+    if args.phase in ("3", "all"):
+        phase3 = Phase3Config.from_yaml(args.config)
+        result = run_phase3_finalization(phase3)
+        print("Phase-3 finalization completed.")
+        print(f"Leakage audit passed: {result['leakage_audit']['passed']}")
+        print(f"Kaggle package: {result['kaggle_package'].get('zip_path')}")
 
     return 0
 

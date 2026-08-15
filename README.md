@@ -358,6 +358,70 @@ Training experiments automatically log dataset version via `src/training/train_c
 
 ---
 
+## Data Engineering (Phase 3)
+
+IEEE-grade finalization for technique-specific evaluation, adversarial robustness, leakage auditing, and Kaggle packaging.
+
+### Run locally
+
+```bash
+python -m src.data.prepare --config configs/data.yaml --phase all
+# or Phase 3 only (requires Phase 1 + 2 outputs)
+python -m src.data.finalize --config configs/data.yaml
+```
+
+### Run with DVC
+
+```bash
+dvc repro prepare
+dvc repro enrich
+dvc repro finalize
+```
+
+### What it adds
+
+| Step | Module | Description |
+|------|--------|-------------|
+| Technique subsets | `src/data/technique_subsets.py` | encoding, role_play, tool_abuse exports |
+| Adversarial paraphrase | `src/data/adversarial_paraphrase.py` | Intent-preserving train augmentation |
+| Leakage audit | `src/data/leakage.py` | Exact + near-duplicate cross-split checks |
+| Reproducibility appendix | `src/data/reproducibility.py` | Commands + SHA-256 artifact hashes |
+| Kaggle package | `src/data/kaggle_package.py` | `kaggle_package.zip` with metadata |
+
+### Phase 3 artifacts
+
+```
+data/processed/
+??? train_adversarial.parquet
+??? kaggle_package/
+??? kaggle_package.zip
+??? subsets/
+?   ??? technique_encoding_{split}.parquet
+?   ??? technique_role_play_{split}.parquet
+?   ??? technique_tool_abuse_{split}.parquet
+??? reports/
+    ??? technique_subsets.json
+    ??? leakage_report.json
+    ??? reproducibility_manifest.json
+    ??? kaggle_package_manifest.json
+
+docs/REPRODUCIBILITY.md
+```
+
+### Kaggle usage
+
+1. Upload `data/processed/kaggle_package.zip` to Kaggle Datasets
+2. In a notebook:
+
+```python
+import pandas as pd
+train = pd.read_parquet("/kaggle/input/<your-dataset>/train_adversarial.parquet")
+```
+
+Full reproducibility commands and hashes: [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md)
+
+---
+
 ## Project Structure
 
 ```

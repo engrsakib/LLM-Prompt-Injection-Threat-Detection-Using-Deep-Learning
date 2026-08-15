@@ -7,3 +7,5 @@ drop_invalid_rows: true
 phase2_enabled: true
 balancing_strategy: oversample_median
 augment_enabled: true
+phase3_enabled: true
+adversarial_paraphrase_enabled: true

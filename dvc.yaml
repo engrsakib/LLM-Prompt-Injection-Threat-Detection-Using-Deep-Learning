@@ -47,3 +47,30 @@ stages:
       - data/processed/reports/severity_buckets.md
       - data/processed/reports/ambiguity_subsets.json
       - data/processed/subsets
+
+  finalize:
+    cmd: python -m src.data.finalize --config configs/data.yaml
+    deps:
+      - configs/data.yaml
+      - params.yaml
+      - data/processed/train_augmented.parquet
+      - data/processed/train.parquet
+      - data/processed/validation.parquet
+      - data/processed/test.parquet
+      - src/data/adversarial_paraphrase.py
+      - src/data/finalize.py
+      - src/data/kaggle_package.py
+      - src/data/leakage.py
+      - src/data/reproducibility.py
+      - src/data/technique_subsets.py
+    params:
+      - params.yaml
+    outs:
+      - data/processed/train_adversarial.parquet
+      - data/processed/reports/leakage_report.json
+      - data/processed/reports/reproducibility_manifest.json
+      - data/processed/reports/technique_subsets.json
+      - data/processed/reports/kaggle_package_manifest.json
+      - data/processed/kaggle_package
+      - data/processed/kaggle_package.zip
+      - docs/REPRODUCIBILITY.md
