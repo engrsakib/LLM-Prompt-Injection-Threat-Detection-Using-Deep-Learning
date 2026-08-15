@@ -6,10 +6,18 @@
 
 <br/>
 
+**Author:** [Md. Nazmus Sakib](https://engrskib.com) ù **Co-Author:** Kazi Omar Faruq
+
+<br/>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Dataset License: CC BY-NC 4.0](https://img.shields.io/badge/Dataset-CC%20BY--NC%204.0-lightgrey?style=for-the-badge)](https://creativecommons.org/licenses/by-nc/4.0/)
+
+<br/>
+
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.5+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Datasets%20%26%20Models-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/)
-[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey?style=for-the-badge)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 [![Thesis](https://img.shields.io/badge/Project-Capstone%20Thesis-blue?style=flat-square)]()
 [![Institution](https://img.shields.io/badge/Institution-DIU-green?style=flat-square)]()
@@ -37,7 +45,7 @@
 
 ## Overview
 
-This repository supports a **capstone thesis** on LLM security, focused on **prompt injection detection**. The objective is to train, compare, and benchmark multiple deep learning architectures on a professional-grade threat intelligence dataset ó extending beyond binary classification toward multi-class intent recognition, severity scoring, and technique-aware defenses.
+This repository supports a **capstone thesis** on LLM security, focused on **prompt injection detection**. The objective is to train, compare, and benchmark multiple deep learning architectures on a professional-grade threat intelligence dataset ù extending beyond binary classification toward multi-class intent recognition, severity scoring, and technique-aware defenses.
 
 The research is grounded in recent work on prompt injection taxonomies, LLM agent security, and adversarial NLP, including **ARGUS**, **AgentSentry**, **CLAWGUARD**, **MetaSecAlign**, and systematic reviews of LLM defense mechanisms. Full PDFs are available in [`papers/`](papers/).
 
@@ -122,8 +130,8 @@ tqdm>=4.66.0
 |----------|-------|
 | **Repository** | [`neuralchemy/prompt-injection-Threat-Matrix`](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix) |
 | **Samples** | 32,320 curated prompts |
-| **Splits** | 80% train ∑ 10% validation ∑ 10% test |
-| **Configs** | `binary` ∑ `multiclass` (default) |
+| **Splits** | 80% train ù 10% validation ù 10% test |
+| **Configs** | `binary` ù `multiclass` (default) |
 | **Format** | Parquet |
 | **Language** | English |
 | **License** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) |
@@ -146,7 +154,7 @@ tqdm>=4.66.0
 |-------|------|-------------|
 | `text` | string | Input prompt |
 | `label` / `intent_label` | int | Classification target |
-| `severity` | int | Threat severity (1ñ10) |
+| `severity` | int | Threat severity (1ù10) |
 | `technique` | string | Attack technique category |
 | `surface` | string | Targeted attack surface |
 | `ambiguity` | bool | Borderline / hard-to-classify flag |
@@ -180,7 +188,7 @@ Twelve deep learning models selected for comparative evaluation. Each entry incl
 | 8 | **TextCNN** | Convolutional (Kim) | *Custom implementation* | ~1M | Classical DL baseline |
 | 9 | **BiLSTM + Attention** | Recurrent + Attention | *Custom implementation* | ~2M | Sequential / obfuscation patterns |
 | 10 | **CNN-BiLSTM** | Hybrid CNN-RNN | *Custom implementation* | ~3M | Local + long-range feature fusion |
-| 11 | **DistilRoBERTa** | Distilled Transformer | [`distilroberta-base`](https://huggingface.co/distilroberta-base) | 82M | Accuracyñspeed trade-off |
+| 11 | **DistilRoBERTa** | Distilled Transformer | [`distilroberta-base`](https://huggingface.co/distilroberta-base) | 82M | Accuracyùspeed trade-off |
 | 12 | **XLNet** | Permutation LM | [`xlnet-base-cased`](https://huggingface.co/xlnet-base-cased) | 110M | Bidirectional context modeling |
 
 ### Model Icons (Architecture Family)
@@ -208,32 +216,32 @@ Twelve deep learning models selected for comparative evaluation. Each entry incl
 
 </p>
 
-> **Legend:** ?? = Hugging Face pre-trained checkpoint ∑ ?? = Custom PyTorch implementation
+> **Legend:** ?? = Hugging Face pre-trained checkpoint ù ?? = Custom PyTorch implementation
 
 ---
 
 ## Reference Papers
 
-Local copies in [`papers/`](papers/) ∑ [Google Drive collection](https://drive.google.com/drive/folders/1K9nPcdnSYI6iGPgNNwDmbew5pM4voqwz)
+Local copies in [`papers/`](papers/) ù [Google Drive collection](https://drive.google.com/drive/folders/1K9nPcdnSYI6iGPgNNwDmbew5pM4voqwz)
 
 | Paper | Focus Area |
 |-------|------------|
 | `1.pdf` | Effectiveness of existing detection methods |
-| `4.pdf` ñ `6.pdf` | Real-world LLM compromise, AgentSentry, indirect injection |
+| `4.pdf` ù `6.pdf` | Real-world LLM compromise, AgentSentry, indirect injection |
 | `7.pdf`, `10.pdf` | Network intrusion & malicious traffic classification |
-| `8.pdf` ñ `9.pdf`, `11.pdf` | ARGUS ó LLM agent defense |
-| `12.pdf` | CLAWGUARD ó runtime agent security |
-| `13.pdf` ñ `15.pdf` | Hybrid defense, threat taxonomy, injection attacks |
+| `8.pdf` ù `9.pdf`, `11.pdf` | ARGUS ù LLM agent defense |
+| `12.pdf` | CLAWGUARD ù runtime agent security |
+| `13.pdf` ù `15.pdf` | Hybrid defense, threat taxonomy, injection attacks |
 | `16.pdf` | Federated learning poisoning detection |
-| `17.pdf` ñ `18.pdf` | MetaSecAlign ó secure foundation LLM |
+| `17.pdf` ù `18.pdf` | MetaSecAlign ù secure foundation LLM |
 | `19.pdf` | Systematic literature review on LLM defenses |
-| `20.pdf` ñ `21.pdf` | Retrieval barrier, TaintP2X injection detection |
+| `20.pdf` ù `21.pdf` | Retrieval barrier, TaintP2X injection detection |
 
 ---
 
 ## Experiment Design
 
-### TaskñModel Mapping
+### TaskùModel Mapping
 
 | Experiment | Recommended Models | Primary Metrics |
 |------------|-------------------|-----------------|
@@ -245,9 +253,9 @@ Local copies in [`papers/`](papers/) ∑ [Google Drive collection](https://drive.g
 ### Evaluation Protocol
 
 ```
-Accuracy ∑ Precision ∑ Recall ∑ F1 (macro & weighted)
-ROC-AUC (binary) ∑ Confusion matrix (multiclass)
-Severity MAE ∑ Inference latency ∑ Model size (MB)
+Accuracy ù Precision ù Recall ù F1 (macro & weighted)
+ROC-AUC (binary) ù Confusion matrix (multiclass)
+Severity MAE ù Inference latency ù Model size (MB)
 ```
 
 ---
@@ -322,17 +330,57 @@ If you use the **Threat Matrix** dataset in this thesis, please cite:
 
 ## License
 
-| Component | License |
-|-----------|---------|
-| **This repository** | Academic / research use (capstone thesis) |
-| **Threat Matrix dataset** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) ó commercial use requires author permission |
-| **Pre-trained models** | Subject to respective Hugging Face model licenses |
+See [`LICENSE`](LICENSE) for the full MIT license text.
+
+| Component | License | Holder |
+|-----------|---------|--------|
+| **This repository** | [MIT License](LICENSE) | Md. Nazmus Sakib ∑ Kazi Omar Faruq |
+| **Threat Matrix dataset** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) | Sanskar Jajoo / Neuralchemy |
+| **Pre-trained models** | Respective Hugging Face model licenses | Model authors |
+
+### MIT License (This Repository)
+
+You **may**:
+
+- Use, copy, modify, merge, publish, distribute, sublicense, and sell copies of this software
+- Use the software for personal, academic, research, and commercial projects
+
+You **must**:
+
+- Include the copyright notice and full MIT license text in all copies or substantial portions
+
+The software is provided **"AS IS"**, without warranty of any kind. The authors are not liable for any damages arising from use of this software.
+
+**Copyright © 2026** Md. Nazmus Sakib ([engrskib.com](https://engrskib.com)) and Kazi Omar Faruq.
+
+### CC BY-NC 4.0 (External Dataset Only)
+
+The [Threat Matrix dataset](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix) is **not** covered by MIT. It uses **Creative Commons Attribution-NonCommercial 4.0**.
+
+You **may** (non-commercial only):
+
+- **Share** ó copy and redistribute the dataset in any medium or format
+- **Adapt** ó remix, transform, and build upon the dataset
+
+You **must**:
+
+- **Attribute** ó give appropriate credit, provide a link to the license, and indicate if changes were made
+- **NonCommercial** ó you may not use the dataset for commercial purposes without permission from the dataset author
+
+You **may not**:
+
+- Use the dataset commercially without explicit permission from Neuralchemy / Sanskar Jajoo
+- Apply legal terms or technological measures that legally restrict others from doing anything the license permits
+
+**Full CC BY-NC 4.0 legal code:** https://creativecommons.org/licenses/by-nc/4.0/legalcode
 
 ---
 
 <div align="center">
 
 **Daffodil International University ∑ 7th Capstone Design ∑ 2026**
+
+**Md. Nazmus Sakib** ([engrskib.com](https://engrskib.com)) ∑ **Kazi Omar Faruq**
 
 *LLM Security ∑ Prompt Injection Detection ∑ Deep Learning*
 
