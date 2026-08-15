@@ -1,674 +1,166 @@
-# Neurological MRI XAI Pipeline
+# LLM Prompt Injection Threat Detection Using Deep Learning
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.1+-EE4C2C?logo=pytorch&logoColor=white)
-![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Transformers-yellow?logo=huggingface&logoColor=white)
-![Timm](https://img.shields.io/badge/Timm-Swin%20%7C%20ConvNeXt%20%7C%20DenseNet-007ACC)
-![Kaggle](https://img.shields.io/badge/Kaggle-Notebooks-20BEFF?logo=kaggle&logoColor=white)
-![License](https://img.shields.io/badge/License-GPLv3-blue.svg)
-
-**Modular, production-ready PyTorch pipeline** for multi-class neurological MRI classification with **explainable AI (XAI)** and **Vision-Language clinical reporting**.
-
-Designed for reproducible research and conference publication (**BECITHCON 2026**). Refactored from the legacy monolithic notebook ([`legacy/notebook8010ef336b.ipynb`](legacy/notebook8010ef336b.ipynb)) into a pip-installable package with CLI-driven orchestration.
-
-**Repository:** [github.com/engrsakib/Neurological-MRI-XAI-Pipeline](https://github.com/engrsakib/Neurological-MRI-XAI-Pipeline)
+**Capstone Thesis Project** � Comparative evaluation of deep learning classifiers for detecting and categorizing prompt injection and jailbreak attacks against large language model (LLM) applications.
 
 ---
 
 ## Overview
 
-| Capability | Description |
-|------------|-------------|
-| **Classification** | Swin Transformer (`swin_base_patch4_window7_224`) with partial fine-tuning (last stage + head) |
-| **Class balance** | Inverse-frequency weighted `CrossEntropyLoss` across 8 disorder categories |
-| **Data integrity** | Patient-level stratified splits — zero slice leakage between train/val/test |
-| **XAI** | Grad-CAM, attention saliency, SAM-constrained ROI overlays |
-| **Reporting** | Florence-2 natural-language diagnostic narratives embedded in HTML reports |
-| **Ensemble (optional)** | Soft-voting benchmark across Swin, ConvNeXt, and DenseNet |
+This repository supports a thesis on **LLM security**, specifically **prompt injection detection**. The goal is to train, compare, and benchmark multiple deep learning models on a professional-grade threat intelligence dataset, moving beyond simple binary classification toward multi-class intent recognition, severity scoring, and technique-aware defenses.
 
----
-
-## Pipeline Architecture
-
-```mermaid
-flowchart LR
-  subgraph data [Data Layer]
-    DS[ImageFolder Dataset]
-    SPL[Patient-Level Splits]
-    DS --> SPL
-  end
-  subgraph train [Training]
-    SPL --> Swin[Swin Classifier]
-    Swin --> FT[Partial Fine-Tune + Class Weights]
-    FT --> CKPT[best_swin.pt]
-  end
-  subgraph xai [XAI and Reporting]
-    CKPT --> Eval[Test Evaluation]
-    CKPT --> GC[Grad-CAM]
-    GC --> SAM[SAM ROI Overlay]
-    SAM --> F2[Florence-2 Caption]
-    F2 --> HTML[HTML Diagnostic Report]
-  end
-```
-
----
-
-## Model & Training Specifications
-
-### Primary Classifier — Swin Transformer
-
-| Parameter | Value |
-|-----------|-------|
-| Backbone | `swin_base_patch4_window7_224` (timm, ImageNet pretrained) |
-| Input resolution | 224 × 224 RGB |
-| Output classes | 8 neurological disorders |
-| Fine-tuning strategy | Freeze early stages; train **last Swin stage + classification head** |
-| LoRA (PEFT) | Disabled by default (`use_lora: false`) — partial FT preferred for T4 VRAM |
-| Module | [`src/neuro_mri_xai/models/swin_classifier.py`](src/neuro_mri_xai/models/swin_classifier.py) |
-
-### Optimized Training Configuration (`configs/default.yaml`)
-
-| Setting | Value | Purpose |
-|---------|-------|---------|
-| Optimizer | AdamW, `lr=1e-4`, `weight_decay=1e-2` | Stable convergence on ~9k training images |
-| Scheduler | CosineAnnealingLR (`T_max=epochs`) | Smooth LR decay |
-| Loss | Class-weighted CrossEntropy | Mitigates AD / tumor class imbalance |
-| Augmentation | Flip (p=0.5), Rotation (±15°), ColorJitter | Improved generalization |
-| AMP | Enabled | Faster epochs on T4 GPU |
-| Early stopping | Patience = 5 epochs | Prevents overfitting |
-| Split strategy | `patient` (group-level stratified 80/10/10) | Prevents data leakage |
-
-### Auxiliary Models
-
-| Model | Role | Module |
-|-------|------|--------|
-| **SAM** (`sam_vit_b`) | Brain ROI segmentation for constrained XAI overlays | `models/sam_roi.py` |
-| **Florence-2** (`microsoft/Florence-2-base`) | Clinical caption / diagnostic text generation | `models/florence_reporter.py` |
-| **ConvNeXt / DenseNet** | Optional ensemble backbones for benchmark comparison | `models/classifier.py`, `evaluation/benchmark.py` |
-
-### VRAM Management (Kaggle T4 — 16 GB)
-
-Heavy models are loaded **sequentially** during XAI/report stages (`vram.sequential_models: true`). Training runs Swin only; SAM and Florence-2 load afterward and are unloaded to stay under ~12 GB peak VRAM.
+The work is grounded in recent research on prompt injection taxonomies, LLM agent security, and adversarial NLP � including papers on ARGUS, AgentSentry, CLAWGUARD, MetaSecAlign, and systematic reviews of LLM defense mechanisms (see `papers/`).
 
 ---
 
 ## Dataset
 
-**Primary source:** [Neurological Disorders MRI Dataset for XAI](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai)
+**Source:** [neuralchemy/prompt-injection-Threat-Matrix](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
 
-**Kaggle mount path (verified):**
+| Property | Details |
+|----------|---------|
+| **Samples** | 32,320 curated prompts |
+| **Splits** | 80% train / 10% validation / 10% test |
+| **Configs** | `binary` (benign vs malicious) and `multiclass` (7-way intent) |
+| **License** | CC BY-NC 4.0 (research use) |
 
+### Intent Classes (Multiclass)
+
+| Label | Intent | Description |
+|-------|--------|-------------|
+| 0 | `benign` | Normal user input |
+| 1 | `direct_injection` | Explicit instruction override |
+| 2 | `system_extraction` | Attempts to leak system prompt |
+| 3 | `role_hijack` | Persona or role manipulation |
+| 4 | `obfuscation` | Encoded or disguised attacks |
+| 5 | `tool_abuse` | Malicious tool/function calls |
+| 6 | `indirect_injection` | Context-based injection |
+
+### Key Features
+
+- **Severity score** (1�10): attack impact and likelihood
+- **Technique label**: attack method (e.g., encoding, role-play)
+- **Surface label**: attack surface targeted
+- **Ambiguity flag**: borderline / hard-to-classify samples
+
+### Quick Load
+
+```python
+from datasets import load_dataset
+
+binary_ds = load_dataset("neuralchemy/prompt-injection-Threat-Matrix", "binary")
+multi_ds  = load_dataset("neuralchemy/prompt-injection-Threat-Matrix", "multiclass")
 ```
-/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data/
-```
 
-**Expected ImageFolder layout:**
-
-```
-data/
-├── AD_MildDemented/
-├── AD_ModerateDemented/
-├── AD_VeryMildDemented/
-├── BT_glioma/
-├── BT_meningioma/
-├── BT_pituitary/
-├── MS/
-└── Normal/
-```
-
-| Class | Clinical Category |
-|-------|-------------------|
-| `AD_MildDemented` / `AD_ModerateDemented` / `AD_VeryMildDemented` | Alzheimer's disease (severity stages) |
-| `BT_glioma` / `BT_meningioma` / `BT_pituitary` | Brain tumors |
-| `MS` | Multiple sclerosis |
-| `Normal` | Healthy control |
-
-~**16,400** axial MRI slices · **8 classes** · patient-level stratified **80/10/10** split.
+**Baseline model (pre-trained on this dataset):** [neuralchemy/distilbert-base-threat-matrix](https://huggingface.co/neuralchemy/distilbert-base-threat-matrix)
 
 ---
 
-## Directory Structure
+## Reference Papers
+
+Local copies are stored in `papers/` (downloaded from [Google Drive](https://drive.google.com/drive/folders/1K9nPcdnSYI6iGPgNNwDmbew5pM4voqwz)).
+
+| # | Topic |
+|---|-------|
+| 1 | Effectiveness of existing prompt injection detection methods |
+| 4�6 | Real-world LLM compromise, AgentSentry, indirect injection |
+| 7, 10 | Network intrusion / malicious traffic classification (MLP, decision-making) |
+| 8�9, 11 | ARGUS � defending LLM agents against prompt injection |
+| 12 | CLAWGUARD � runtime security for LLM agents |
+| 13�15 | Multi-model hybrid defense, threat taxonomy, prompt injection attacks |
+| 16 | Federated learning poisoning detection |
+| 17�18 | MetaSecAlign � secure foundation LLM against prompt injection |
+| 19 | Systematic literature review on LLM prompt injection defenses |
+| 20�21 | Retrieval barrier, TaintP2X taint-style injection detection |
+
+---
+
+## 12 Deep Learning Models to Implement
+
+The following models are selected for **text classification** on the Threat Matrix dataset. They span transformer encoders, lightweight distillation variants, CNN/RNN hybrids, and security-domain pre-trained models � suitable for binary and multiclass experiments within a capstone timeline.
+
+| # | Model | Type | Why Implement |
+|---|-------|------|---------------|
+| 1 | **DistilBERT** | Distilled Transformer | Fast baseline; official model already exists on this dataset |
+| 2 | **BERT-base-uncased** | Transformer Encoder | Strong general-purpose text classifier; widely cited baseline |
+| 3 | **RoBERTa-base** | Transformer Encoder | Improved pre-training over BERT; strong on adversarial text |
+| 4 | **DeBERTa-v3-base** | Transformer Encoder | Disentangled attention; top performance on GLUE-style tasks |
+| 5 | **SecureBERT** | Domain-specific BERT | Pre-trained on cybersecurity corpus; relevant for threat detection |
+| 6 | **ALBERT-base-v2** | Lightweight Transformer | Parameter-efficient; good for ablation vs full BERT |
+| 7 | **ELECTRA-small** | Discriminator-pretrained | Efficient alternative with competitive accuracy |
+| 8 | **TextCNN (Kim CNN)** | Convolutional | Classic short-text classifier; fast to train, good comparison point |
+| 9 | **BiLSTM + Attention** | Recurrent + Attention | Captures sequential patterns in obfuscated / encoded attacks |
+| 10 | **CNN-BiLSTM Hybrid** | CNN + RNN | Combines local n-gram features with long-range dependencies |
+| 11 | **DistilRoBERTa** | Distilled Transformer | Balance of RoBERTa accuracy and DistilBERT speed |
+| 12 | **XLNet-base** | Permutation LM | Handles bidirectional context; useful for indirect injection |
+
+### Suggested Experiment Matrix
+
+| Task | Models to prioritize |
+|------|---------------------|
+| **Binary detection** (benign vs malicious) | DistilBERT, BERT, SecureBERT, TextCNN, DistilRoBERTa |
+| **7-class intent classification** | RoBERTa, DeBERTa, BiLSTM+Attention, CNN-BiLSTM |
+| **Severity regression / scoring** | DeBERTa, RoBERTa, XLNet |
+| **Low-resource / fast inference** | DistilBERT, ALBERT, ELECTRA-small, TextCNN |
+
+### Evaluation Metrics
+
+- Accuracy, Precision, Recall, F1 (macro & weighted)
+- ROC-AUC (binary config)
+- Confusion matrix per intent class
+- Severity MAE (if predicting severity as regression)
+- Inference latency (ms/sample) for deployment comparison
+
+---
+
+## Project Structure (planned)
 
 ```
 model/
-├── configs/default.yaml              # Central hyperparameter & path configuration
-├── Colab_Runner.ipynb                # Kaggle 11-cell orchestrator (subprocess-based)
-├── scripts/                          # Data/weight download, CI helpers
-├── src/neuro_mri_xai/
-│   ├── config.py                     # Typed YAML loader
-│   ├── data/
-│   │   ├── dataset.py                # ImageFolder + stratified splits
-│   │   ├── splits.py                 # Patient/group ID extraction (zero leakage)
-│   │   └── transforms.py             # Train/val/test augmentations
-│   ├── models/
-│   │   ├── classifier.py             # timm factory (Swin / ConvNeXt / DenseNet)
-│   │   ├── ensemble.py               # Soft-voting ensemble
-│   │   ├── swin_classifier.py        # Swin backbone + partial freeze
-│   │   ├── florence_reporter.py      # Florence-2 captioning (task-prompt validated)
-│   │   ├── sam_roi.py                # SAM brain ROI extraction
-│   │   └── lora.py                   # Optional PEFT LoRA adapters
-│   ├── training/
-│   │   ├── trainer.py                # AMP, early stopping, checkpointing
-│   │   ├── train_cli.py              # Training entry point
-│   │   └── kfold_cli.py              # Patient-level k-fold CV
-│   ├── evaluation/
-│   │   ├── test_eval.py              # Held-out test metrics + batch XAI
-│   │   ├── benchmark.py              # Multi-backbone benchmark
-│   │   ├── ensemble_eval.py          # Soft-voting ensemble evaluation
-│   │   └── metrics.py                # Accuracy, P/R/F1, AUC-ROC, per-class JSON
-│   ├── explainability/
-│   │   ├── gradcam.py                # Grad-CAM heatmaps
-│   │   ├── attention_rollout.py      # Attention saliency maps
-│   │   ├── sam_overlay.py            # SAM-constrained overlays
-│   │   ├── batch_export.py           # Batch XAI export for test set
-│   │   └── xai_cli.py                # Single-image / batch XAI CLI
-│   └── report.py                     # HTML diagnostic report generator
-├── tests/                            # 59+ unit & smoke tests
-└── outputs/                          # Checkpoints, figures, reports (gitignored)
-    ├── checkpoints/
-    ├── figures/
-    ├── logs/
-    └── reports/
+??? papers/              # Reference PDFs
+??? configs/             # Training hyperparameters
+??? src/                 # Training, evaluation, and inference code
+??? scripts/             # Data download and utility scripts
+??? outputs/             # Checkpoints, logs, plots
+??? README.md
 ```
 
 ---
 
-## Configuration & Environment Variables
-
-Edit [`configs/default.yaml`](configs/default.yaml) or override at runtime:
-
-| Variable / Flag | Purpose |
-|-----------------|---------|
-| `--data-dir PATH` | Override dataset ImageFolder root (all CLIs) |
-| `NEURO_MRI_DATA_DIR` | Environment override for dataset path |
-| `NEURO_MRI_SAM_ENABLED` | `true` / `false` — enable SAM during XAI/report |
-| `NEURO_MRI_SEQUENTIAL_VRAM` | Sequential model load/unload (recommended on T4) |
-| `NEURO_MRI_USE_LORA` | Enable LoRA adapters (default: off) |
-
----
-
-## 🚀 Kaggle Quickstart & Execution Guide
-
-Run the full pipeline on **[Kaggle Notebooks](https://www.kaggle.com/code)** using the official orchestrator: [`Colab_Runner.ipynb`](Colab_Runner.ipynb).
-
-The notebook contains **11 cells total** — one Markdown intro plus **10 executable Code cells (Cell 1 → Cell 10)**. Paste each block below into a matching Kaggle Code cell and run **in order** (later cells depend on `PROJECT_DIR`, `DATA_DIR`, and `sample_image` from earlier steps).
-
-### Prerequisites (Markdown Cell — run first)
-
-1. **Settings → Accelerator → GPU** (T4 recommended, 16 GB VRAM).
-2. **Add Input → Datasets** → attach [`engrsakib02/neurological-disorders-mri-dataset-for-xai`](https://www.kaggle.com/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai).
-3. Run all Code cells sequentially.
-
-### Workflow Overview
-
-| Step | Cell | Purpose | Key Outputs |
-|------|------|---------|-------------|
-| 0 | Markdown | Prerequisites & dataset attachment | — |
-| 1 | Code | GPU / Python / PyTorch environment check | CUDA status, GPU name |
-| 2 | Code | Clone repository to `/kaggle/working/` | `PROJECT_DIR` |
-| 3 | Code | Install dependencies (`pip install -e .`) | `neuro_mri_xai` importable |
-| 4 | Code | Resolve dataset path + set env vars | `DATA_DIR`, config summary |
-| 5 | Code | Download SAM weights | `weights/sam_vit_b_01ec64.pth` |
-| 6 | Code | Train Swin classifier | `outputs/checkpoints/best_swin.pt` |
-| 7 | Code | Evaluate on held-out test set | `outputs/figures/metrics.json`, confusion matrix |
-| 8 | Code | Single-sample XAI (Grad-CAM, attention, SAM) | `outputs/figures/*_gradcam.png`, etc. |
-| 9 | Code | HTML diagnostic report (Florence-2 + XAI) | `outputs/reports/*.html` |
-| 10 | Code | List persisted output artifacts | File counts under `outputs/` |
-
-> **Note:** `configs/default.yaml` uses **partial Swin fine-tuning** (`use_lora: false`, `freeze_early_backbone: true`). The notebook header still references “Swin + LoRA” for historical compatibility; LoRA can be re-enabled via config if needed.
-
----
-
-### Cell 1 — Environment Check
-
-Verify Python, PyTorch, and GPU availability before installing anything.
-
-```python
-# Cell 1: Environment check
-import sys
-
-import torch
-
-print(f"Python: {sys.version}")
-print(f"PyTorch: {torch.__version__}")
-print(f"CUDA available: {torch.cuda.is_available()}")
-if torch.cuda.is_available():
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
-```
-
-**Expected output:** `CUDA available: True` and a T4 (or similar) GPU name.
-
----
-
-### Cell 2 — Clone Repository
-
-Clone the pipeline into Kaggle working storage. Re-running this cell skips clone if the folder already exists.
-
-```python
-# Cell 2: Clone repository
-import os
-import subprocess
-from pathlib import Path
-
-REPO_URL = "https://github.com/engrsakib/Neurological-MRI-XAI-Pipeline.git"
-PROJECT_DIR = Path("/kaggle/working/Neurological-MRI-XAI-Pipeline")
-
-if not PROJECT_DIR.exists():
-    subprocess.run(["git", "clone", REPO_URL, str(PROJECT_DIR)], check=True)
-else:
-    print(f"Repo already exists at {PROJECT_DIR}")
-    # Optional: pull latest fixes (Florence-2 prompt, Swin partial FT, patient splits)
-    subprocess.run(["git", "-C", str(PROJECT_DIR), "fetch", "origin"], check=True)
-    subprocess.run(["git", "-C", str(PROJECT_DIR), "pull", "origin", "main"], check=True)
-
-os.chdir(PROJECT_DIR)
-print(f"Working directory: {os.getcwd()}")
-```
-
-**Expected output:** `Working directory: /kaggle/working/Neurological-MRI-XAI-Pipeline`
-
----
-
-### Cell 3 — Install Dependencies
-
-Install project requirements, editable package, and Segment Anything.
-
-```python
-# Cell 3: Install dependencies
-import subprocess
-import sys
-
-import torch
-
-print(f"Kaggle torch version: {torch.__version__}")
-
-subprocess.run(["pip", "install", "-q", "-r", "requirements.txt"], check=True)
-subprocess.run(["pip", "install", "-q", "-e", "."], check=True)
-subprocess.run(
-    ["pip", "install", "-q", "git+https://github.com/facebookresearch/segment-anything.git"],
-    check=True,
-)
-
-sys.path.insert(0, str(PROJECT_DIR / "src"))
-print("Dependencies installed.")
-```
-
-**Expected output:** `Dependencies installed.`
-
----
-
-### Cell 4 — Kaggle Dataset Path & Environment
-
-Verify the Kaggle input mount, resolve the ImageFolder root via `load_config`, and print the active model settings. SAM is **disabled** during training to save VRAM.
-
-```python
-# Cell 4: Kaggle dataset path + environment
-import os
-from pathlib import Path
-
-from neuro_mri_xai.config import load_config
-
-DATA_DIR = "/kaggle/input/datasets/engrsakib02/neurological-disorders-mri-dataset-for-xai/data"
-
-print("Kaggle inputs:", os.listdir("/kaggle/input"))
-data_path = Path(DATA_DIR)
-assert data_path.exists() or data_path.parent.exists(), (
-    "Attach engrsakib02/neurological-disorders-mri-dataset-for-xai via Add Input"
-)
-
-os.environ["NEURO_MRI_PROJECT_ROOT"] = str(PROJECT_DIR)
-os.environ["NEURO_MRI_SAM_ENABLED"] = "false"
-os.environ["NEURO_MRI_SEQUENTIAL_VRAM"] = "true"
-
-cfg = load_config("configs/default.yaml", data_dir=DATA_DIR)
-DATA_DIR = str(cfg.dataset.data_dir)
-print(f"Resolved data dir: {DATA_DIR}")
-print(f"Backbone: {cfg.model.backbone}, LoRA: {cfg.model.use_lora}, SAM: {cfg.sam.enabled}")
-print(f"Split strategy: {cfg.dataset.split_strategy}, freeze backbone: {cfg.training.freeze_early_backbone}")
-```
-
-**Optional — per-class distribution check** (append to Cell 4 or run as a separate cell):
-
-```python
-from collections import Counter
-
-EXPECTED = cfg.get_class_names()
-counts = {}
-for cls in EXPECTED:
-    folder = Path(DATA_DIR) / cls
-    counts[cls] = len(list(folder.glob("*.*"))) if folder.is_dir() else 0
-
-print(f"Total images: {sum(counts.values()):,}")
-for cls, n in sorted(counts.items(), key=lambda x: -x[1]):
-    print(f"  {cls:25s} {n:6,d}")
-```
-
-**Expected output:** Resolved path under `/kaggle/input/.../data`, 8 classes, ~16,400 total images.
-
----
-
-### Cell 5 — Download SAM Weights
-
-Download `sam_vit_b_01ec64.pth` into the configured weights directory (required for Cells 8–9).
-
-```python
-# Cell 5: Download SAM weights
-import subprocess
-
-subprocess.run(["python", "scripts/download_weights.py", "--config", "configs/default.yaml"], check=True)
-```
-
-**Expected output:** SAM checkpoint saved to `weights/sam_vit_b_01ec64.pth`.
-
----
-
-### Cell 6 — Train Swin Classifier
-
-Run the training CLI with optimized defaults: partial backbone freeze, class-weighted loss, augmentation, AdamW + CosineAnnealingLR, patient-level splits.
-
-```python
-# Cell 6: Train Swin classifier
-import subprocess
-
-subprocess.run(
-    [
-        "python",
-        "-m",
-        "neuro_mri_xai.training.train_cli",
-        "--config",
-        "configs/default.yaml",
-        "--data-dir",
-        DATA_DIR,
-    ],
-    check=True,
-)
-```
-
-| Deliverable | Path |
-|-------------|------|
-| Best checkpoint | `outputs/checkpoints/best_swin.pt` |
-| Training curves | `outputs/logs/training_curves.png` |
-| LoRA adapter (if enabled) | `outputs/checkpoints/lora_adapter/` |
-
-**Expected console output:**
-
-```
-Using dataset: /kaggle/input/.../data
-Partial fine-tune: ... trainable parameters
-Using class-weighted CrossEntropyLoss (8 classes)
-Epoch 1/20 — train_loss=... val_acc=...
-  Saved best checkpoint (val_acc=...)
-Best checkpoint: outputs/checkpoints/best_swin.pt (val_acc=...)
-```
-
-Equivalent terminal command:
+## Getting Started
 
 ```bash
-python -m neuro_mri_xai.training.train_cli \
-  --config configs/default.yaml \
-  --data-dir "${DATA_DIR}"
+pip install torch transformers datasets scikit-learn pandas
 ```
 
----
-
-### Cell 7 — Evaluate on Test Set
-
-Run held-out test evaluation: accuracy, macro P/R/F1, AUC-ROC, confusion matrix, and per-class metrics.
-
 ```python
-# Cell 7: Evaluate on test set
-import subprocess
+from datasets import load_dataset
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-subprocess.run(
-    [
-        "python",
-        "-m",
-        "neuro_mri_xai.evaluation.test_eval",
-        "--config",
-        "configs/default.yaml",
-        "--checkpoint",
-        "outputs/checkpoints/best_swin.pt",
-        "--data-dir",
-        DATA_DIR,
-    ],
-    check=True,
+ds = load_dataset("neuralchemy/prompt-injection-Threat-Matrix", "multiclass")
+tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+model = AutoModelForSequenceClassification.from_pretrained(
+    "distilbert-base-uncased", num_labels=7
 )
 ```
 
-**Optional — include batch XAI export during evaluation:**
-
-```python
-subprocess.run(
-    [
-        "python", "-m", "neuro_mri_xai.evaluation.test_eval",
-        "--config", "configs/default.yaml",
-        "--checkpoint", "outputs/checkpoints/best_swin.pt",
-        "--data-dir", DATA_DIR,
-        "--export-xai",
-        "--xai-max-samples", "16",
-    ],
-    check=True,
-)
-```
-
-| Deliverable | Path |
-|-------------|------|
-| Confusion matrix | `outputs/figures/confusion_matrix.png` |
-| Per-class metrics | `outputs/figures/per_class_metrics.json` |
-| ROC curves | `outputs/figures/roc_curves.png` |
-| Test metrics | `outputs/figures/metrics.json` |
-| Classification report | `outputs/figures/classification_report.txt` |
-
-Equivalent terminal command:
-
-```bash
-python -m neuro_mri_xai.evaluation.test_eval \
-  --config configs/default.yaml \
-  --checkpoint outputs/checkpoints/best_swin.pt \
-  --data-dir "${DATA_DIR}"
-```
-
 ---
 
-### Cell 8 — XAI Visualizations (Single Sample)
+## Citation
 
-Enable SAM, pick a sample MRI slice, and export Grad-CAM, attention saliency, and SAM-constrained overlay figures.
-
-```python
-# Cell 8: XAI visualizations (single sample)
-import os
-import subprocess
-from pathlib import Path
-
-os.environ["NEURO_MRI_SAM_ENABLED"] = "true"
-sample_image = next(Path(DATA_DIR).rglob("*.jpg"))
-print(f"Sample: {sample_image}")
-
-subprocess.run(
-    [
-        "python",
-        "-m",
-        "neuro_mri_xai.explainability.xai_cli",
-        "--config",
-        "configs/default.yaml",
-        "--checkpoint",
-        "outputs/checkpoints/best_swin.pt",
-        "--image",
-        str(sample_image),
-        "--data-dir",
-        DATA_DIR,
-        "--output-dir",
-        "outputs/figures",
-    ],
-    check=True,
-)
-```
-
-| Deliverable | Path |
-|-------------|------|
-| Grad-CAM overlay | `outputs/figures/<stem>_gradcam.png` |
-| Attention saliency | `outputs/figures/<stem>_attention.png` |
-| SAM-constrained overlay | `outputs/figures/<stem>_sam_overlay.png` |
-| SAM ROI mask | `outputs/figures/<stem>_sam_mask.png` |
-
-Equivalent terminal command:
-
-```bash
-python -m neuro_mri_xai.explainability.xai_cli \
-  --config configs/default.yaml \
-  --checkpoint outputs/checkpoints/best_swin.pt \
-  --image "${SAMPLE_IMAGE}" \
-  --data-dir "${DATA_DIR}" \
-  --output-dir outputs/figures
-```
-
----
-
-### Cell 9 — Full HTML Diagnostic Report
-
-Generate an inline-viewable HTML report combining classifier prediction, XAI figures, and Florence-2 clinical narrative.
-
-```python
-# Cell 9: Full HTML diagnostic report
-import os
-from pathlib import Path
-
-from IPython.display import HTML, display
-
-from neuro_mri_xai.report import generate_report
-
-os.environ["NEURO_MRI_SAM_ENABLED"] = "true"
-os.environ["NEURO_MRI_SEQUENTIAL_VRAM"] = "true"
-
-sample_image = next(Path(DATA_DIR).rglob("*.jpg"))
-print(f"Sample: {sample_image}")
-
-report_path = generate_report(
-    checkpoint="outputs/checkpoints/best_swin.pt",
-    image=str(sample_image),
-    config_path="configs/default.yaml",
-    data_dir=DATA_DIR,
-)
-display(HTML(report_path.read_text()))
-```
-
-Pass `skip_florence=True` to `generate_report(...)` or add `--skip-florence` on the CLI if Florence-2 exceeds VRAM.
-
-Equivalent terminal command:
-
-```bash
-python -m neuro_mri_xai.report \
-  --config configs/default.yaml \
-  --checkpoint outputs/checkpoints/best_swin.pt \
-  --image "${SAMPLE_IMAGE}" \
-  --data-dir "${DATA_DIR}"
-```
-
-| Deliverable | Path |
-|-------------|------|
-| HTML report | `outputs/reports/<stem>_report.html` |
-| Embedded figures | Grad-CAM, attention saliency, SAM overlay (base64 in HTML) |
-| Clinical narrative | Florence-2 caption + predicted class + confidence |
-
----
-
-### Cell 10 — Persist Outputs
-
-Kaggle automatically persists `/kaggle/working/`. This cell lists artifact counts before the session ends.
-
-```python
-# Cell 10: Persist outputs (Kaggle saves /kaggle/working automatically)
-from pathlib import Path
-
-output_root = Path("outputs")
-for folder in ["checkpoints", "figures", "reports", "logs"]:
-    path = output_root / folder
-    if path.exists():
-        files = list(path.rglob("*"))
-        print(f"{folder}: {len(files)} file(s) under {path.resolve()}")
-
-print("\nDownload outputs from the Kaggle notebook 'Output' tab before the session ends.")
-```
-
-Download **`outputs/checkpoints/`**, **`outputs/figures/`**, **`outputs/reports/`**, and **`outputs/logs/`** via the Kaggle **Output** tab or **Save Version → Save & Run All (Commit)**.
-
----
-
-## Optional: Multi-Backbone Benchmark & Ensemble
-
-For comparative analysis (Swin vs ConvNeXt vs DenseNet) and soft-voting ensemble evaluation:
-
-```bash
-# Train and evaluate all three backbones
-python -m neuro_mri_xai.evaluation.benchmark \
-  --config configs/default.yaml \
-  --data-dir "${DATA_DIR}"
-
-# Soft-voting ensemble on saved checkpoints
-python -m neuro_mri_xai.evaluation.ensemble_eval \
-  --config configs/default.yaml \
-  --checkpoints \
-    outputs/checkpoints/benchmark/swin_base_patch4_window7_224/best_swin.pt \
-    outputs/checkpoints/benchmark/convnext_base_fb_in22k_ft_in1k/best_swin.pt \
-    outputs/checkpoints/benchmark/densenet121/best_swin.pt \
-  --data-dir "${DATA_DIR}" \
-  --export-xai
-```
-
-| Model | timm Identifier | Typical Role |
-|-------|-----------------|--------------|
-| Swin Transformer | `swin_base_patch4_window7_224` | Primary classifier (global + local context) |
-| ConvNeXt | `convnext_base.fb_in22k_ft_in1k` | CNN-style hierarchical features |
-| DenseNet-121 | `densenet121` | Dense feature reuse baseline |
-| **Ensemble** | Soft-voting average of softmax probabilities | Improved robustness |
-
----
-
-## Local Development
-
-```bash
-git clone https://github.com/engrsakib/Neurological-MRI-XAI-Pipeline.git
-cd Neurological-MRI-XAI-Pipeline
-
-pip install -r requirements.txt -r requirements-dev.txt
-pip install -e .
-
-python -m pytest tests/ -q
-python -m ruff check src tests
-```
-
----
-
-## CLI Reference
-
-| Command | Purpose |
-|---------|---------|
-| `python -m neuro_mri_xai.training.train_cli` | Train Swin classifier |
-| `python -m neuro_mri_xai.training.kfold_cli --folds 5` | Patient-level k-fold CV |
-| `python -m neuro_mri_xai.evaluation.test_eval --checkpoint ...` | Test-set metrics + optional batch XAI |
-| `python -m neuro_mri_xai.explainability.xai_cli --image ...` | Single-image XAI |
-| `python -m neuro_mri_xai.explainability.xai_cli --batch` | Batch test-set XAI export |
-| `python -m neuro_mri_xai.report --checkpoint ... --image ...` | HTML diagnostic report |
-| `python -m neuro_mri_xai.evaluation.benchmark` | Multi-backbone benchmark |
-| `python -m neuro_mri_xai.evaluation.ensemble_eval --checkpoints ...` | Soft-voting ensemble eval |
-
-All commands accept `--data-dir` and `--config configs/default.yaml`.
-
----
-
-## Citation & License
-
-If you use this pipeline in academic work (e.g., **BECITHCON 2026**), please cite the repository:
+If you use the dataset, cite:
 
 ```bibtex
-@software{sakib2026neuromrixai,
-  author  = {Md. Nazmus Sakib},
-  title   = {Neurological MRI XAI Pipeline: Swin Transformer Classification with SAM and Florence-2 Reporting},
-  year    = {2026},
-  url     = {https://github.com/engrsakib/Neurological-MRI-XAI-Pipeline}
+@dataset{jajoo2026threatmatrix,
+  author    = {Sanskar Jajoo},
+  title     = {Neuralchemy Prompt Injection Threat Matrix},
+  year      = {2026},
+  publisher = {Hugging Face},
+  url       = {https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix}
 }
 ```
 
-**License:** [GNU General Public License v3.0](LICENSE) — Copyright (C) 2026 Md. Nazmus Sakib.
+---
 
-**Medical disclaimer:** All AI-generated reports and visualizations are for **research and interpretability purposes only**. They are not a substitute for professional medical diagnosis.
+## License
+
+Research use only. Dataset license: **CC BY-NC 4.0**. Commercial use requires permission from the dataset author.
