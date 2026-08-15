@@ -104,9 +104,17 @@ tqdm>=4.66.0
 
 ## Dataset
 
-<div align="left">
+<div align="center">
 
-[![Hugging Face Dataset](https://img.shields.io/badge/??%20Dataset-prompt--injection--Threat--Matrix-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
+<a href="https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix">
+  <img src="https://huggingface.co/datasets/huggingface/brand/resolve/main/hf_dataset_with_text.svg" alt="Hugging Face Dataset" width="320"/>
+</a>
+
+<br/><br/>
+
+[![Hugging Face Dataset](https://img.shields.io/badge/??%20Hugging%20Face-prompt--injection--Threat--Matrix-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
+[![Dataset Size](https://img.shields.io/badge/Samples-32%2C320-blue?style=for-the-badge)](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey?style=for-the-badge)](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
 
 </div>
 
