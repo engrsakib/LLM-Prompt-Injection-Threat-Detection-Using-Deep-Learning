@@ -1,46 +1,147 @@
+<div align="center">
+
 # LLM Prompt Injection Threat Detection Using Deep Learning
 
-**Capstone Thesis Project** — Comparative evaluation of deep learning classifiers for detecting and categorizing prompt injection and jailbreak attacks against large language model (LLM) applications.
+**Comparative evaluation of deep learning classifiers for detecting and categorizing prompt injection and jailbreak attacks against LLM-integrated applications.**
+
+<br/>
+
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.5+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Datasets%20%26%20Models-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey?style=for-the-badge)](https://creativecommons.org/licenses/by-nc/4.0/)
+
+[![Thesis](https://img.shields.io/badge/Project-Capstone%20Thesis-blue?style=flat-square)]()
+[![Institution](https://img.shields.io/badge/Institution-DIU-green?style=flat-square)]()
+[![Domain](https://img.shields.io/badge/Domain-LLM%20Security-red?style=flat-square)]()
+[![Status](https://img.shields.io/badge/Status-In%20Development-orange?style=flat-square)]()
+
+</div>
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Technology Stack](#technology-stack)
+- [Dataset](#dataset)
+- [Model Registry](#model-registry)
+- [Reference Papers](#reference-papers)
+- [Experiment Design](#experiment-design)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Citation](#citation)
+- [License](#license)
 
 ---
 
 ## Overview
 
-This repository supports a thesis on **LLM security**, specifically **prompt injection detection**. The goal is to train, compare, and benchmark multiple deep learning models on a professional-grade threat intelligence dataset, moving beyond simple binary classification toward multi-class intent recognition, severity scoring, and technique-aware defenses.
+This repository supports a **capstone thesis** on LLM security, focused on **prompt injection detection**. The objective is to train, compare, and benchmark multiple deep learning architectures on a professional-grade threat intelligence dataset — extending beyond binary classification toward multi-class intent recognition, severity scoring, and technique-aware defenses.
 
-The work is grounded in recent research on prompt injection taxonomies, LLM agent security, and adversarial NLP — including papers on ARGUS, AgentSentry, CLAWGUARD, MetaSecAlign, and systematic reviews of LLM defense mechanisms (see `papers/`).
+The research is grounded in recent work on prompt injection taxonomies, LLM agent security, and adversarial NLP, including **ARGUS**, **AgentSentry**, **CLAWGUARD**, **MetaSecAlign**, and systematic reviews of LLM defense mechanisms. Full PDFs are available in [`papers/`](papers/).
+
+---
+
+## Technology Stack
+
+### Core Framework
+
+| Technology | Version | Role | Badge |
+|------------|---------|------|-------|
+| **Python** | `3.11+` | Primary language | ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat-square&logo=python&logoColor=white) |
+| **PyTorch** | `2.5+` | Deep learning backend | ![PyTorch](https://img.shields.io/badge/-PyTorch-EE4C2C?style=flat-square&logo=pytorch&logoColor=white) |
+| **Transformers** | `4.46+` | Pre-trained model loading & fine-tuning | ![Transformers](https://img.shields.io/badge/-Transformers-FFD21E?style=flat-square&logo=huggingface&logoColor=black) |
+| **Datasets** | `3.1+` | Hugging Face dataset pipeline | ![Datasets](https://img.shields.io/badge/-Datasets-FFD21E?style=flat-square&logo=huggingface&logoColor=black) |
+| **Accelerate** | `1.1+` | Distributed / mixed-precision training | ![Accelerate](https://img.shields.io/badge/-Accelerate-FFD21E?style=flat-square&logo=huggingface&logoColor=black) |
+| **Tokenizers** | `0.20+` | Fast text tokenization | ![Tokenizers](https://img.shields.io/badge/-Tokenizers-FFD21E?style=flat-square&logo=huggingface&logoColor=black) |
+
+### ML & Evaluation
+
+| Technology | Version | Role | Badge |
+|------------|---------|------|-------|
+| **scikit-learn** | `1.5+` | Metrics, splits, baselines | ![scikit-learn](https://img.shields.io/badge/-scikit--learn-F7931E?style=flat-square&logo=scikitlearn&logoColor=white) |
+| **pandas** | `2.2+` | Data analysis & reporting | ![pandas](https://img.shields.io/badge/-pandas-150458?style=flat-square&logo=pandas&logoColor=white) |
+| **NumPy** | `2.0+` | Numerical computation | ![NumPy](https://img.shields.io/badge/-NumPy-013243?style=flat-square&logo=numpy&logoColor=white) |
+| **Matplotlib** | `3.9+` | Result visualization | ![Matplotlib](https://img.shields.io/badge/-Matplotlib-11557C?style=flat-square) |
+| **Seaborn** | `0.13+` | Confusion matrices & plots | ![Seaborn](https://img.shields.io/badge/-Seaborn-444876?style=flat-square) |
+
+### DevOps & Environment
+
+| Technology | Version | Role | Badge |
+|------------|---------|------|-------|
+| **CUDA** | `12.1+` | GPU acceleration (optional) | ![CUDA](https://img.shields.io/badge/-CUDA-76B900?style=flat-square&logo=nvidia&logoColor=white) |
+| **Git** | `2.40+` | Version control | ![Git](https://img.shields.io/badge/-Git-F05032?style=flat-square&logo=git&logoColor=white) |
+| **Jupyter** | `1.1+` | Experiment notebooks | ![Jupyter](https://img.shields.io/badge/-Jupyter-F37626?style=flat-square&logo=jupyter&logoColor=white) |
+
+### Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+<details>
+<summary><b>requirements.txt</b> (recommended versions)</summary>
+
+```txt
+torch>=2.5.0
+transformers>=4.46.0
+datasets>=3.1.0
+accelerate>=1.1.0
+tokenizers>=0.20.0
+scikit-learn>=1.5.0
+pandas>=2.2.0
+numpy>=2.0.0
+matplotlib>=3.9.0
+seaborn>=0.13.0
+evaluate>=0.4.0
+tqdm>=4.66.0
+```
+
+</details>
 
 ---
 
 ## Dataset
 
-**Source:** [neuralchemy/prompt-injection-Threat-Matrix](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
+<div align="left">
 
-| Property | Details |
-|----------|---------|
+[![Hugging Face Dataset](https://img.shields.io/badge/??%20Dataset-prompt--injection--Threat--Matrix-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
+
+</div>
+
+| Property | Value |
+|----------|-------|
+| **Repository** | [`neuralchemy/prompt-injection-Threat-Matrix`](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix) |
 | **Samples** | 32,320 curated prompts |
-| **Splits** | 80% train / 10% validation / 10% test |
-| **Configs** | `binary` (benign vs malicious) and `multiclass` (7-way intent) |
-| **License** | CC BY-NC 4.0 (research use) |
+| **Splits** | 80% train · 10% validation · 10% test |
+| **Configs** | `binary` · `multiclass` (default) |
+| **Format** | Parquet |
+| **Language** | English |
+| **License** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) |
 
 ### Intent Classes (Multiclass)
 
 | Label | Intent | Description |
-|-------|--------|-------------|
-| 0 | `benign` | Normal user input |
-| 1 | `direct_injection` | Explicit instruction override |
-| 2 | `system_extraction` | Attempts to leak system prompt |
-| 3 | `role_hijack` | Persona or role manipulation |
-| 4 | `obfuscation` | Encoded or disguised attacks |
-| 5 | `tool_abuse` | Malicious tool/function calls |
-| 6 | `indirect_injection` | Context-based injection |
+|:-----:|--------|-------------|
+| `0` | `benign` | Normal user input |
+| `1` | `direct_injection` | Explicit instruction override |
+| `2` | `system_extraction` | Attempts to leak system prompt |
+| `3` | `role_hijack` | Persona or role manipulation |
+| `4` | `obfuscation` | Encoded or disguised attacks |
+| `5` | `tool_abuse` | Malicious tool/function calls |
+| `6` | `indirect_injection` | Context-based injection |
 
-### Key Features
+### Schema Highlights
 
-- **Severity score** (1–10): attack impact and likelihood
-- **Technique label**: attack method (e.g., encoding, role-play)
-- **Surface label**: attack surface targeted
-- **Ambiguity flag**: borderline / hard-to-classify samples
+| Field | Type | Description |
+|-------|------|-------------|
+| `text` | string | Input prompt |
+| `label` / `intent_label` | int | Classification target |
+| `severity` | int | Threat severity (1–10) |
+| `technique` | string | Attack technique category |
+| `surface` | string | Targeted attack surface |
+| `ambiguity` | bool | Borderline / hard-to-classify flag |
 
 ### Quick Load
 
@@ -51,76 +152,112 @@ binary_ds = load_dataset("neuralchemy/prompt-injection-Threat-Matrix", "binary")
 multi_ds  = load_dataset("neuralchemy/prompt-injection-Threat-Matrix", "multiclass")
 ```
 
-**Baseline model (pre-trained on this dataset):** [neuralchemy/distilbert-base-threat-matrix](https://huggingface.co/neuralchemy/distilbert-base-threat-matrix)
+**Official baseline (pre-trained):** [`neuralchemy/distilbert-base-threat-matrix`](https://huggingface.co/neuralchemy/distilbert-base-threat-matrix)
+
+---
+
+## Model Registry
+
+Twelve deep learning models selected for comparative evaluation. Each entry includes architecture type, Hugging Face checkpoint (where applicable), parameter scale, and thesis role.
+
+| # | Model | Architecture | Hugging Face Checkpoint | Params | Thesis Role |
+|:-:|-------|--------------|-------------------------|:------:|-------------|
+| 1 | **DistilBERT** | Distilled Transformer | [`distilbert-base-uncased`](https://huggingface.co/distilbert-base-uncased) | 66M | Primary baseline; dataset-aligned reference |
+| 2 | **BERT** | Transformer Encoder | [`bert-base-uncased`](https://huggingface.co/bert-base-uncased) | 110M | Canonical text classification baseline |
+| 3 | **RoBERTa** | Transformer Encoder | [`roberta-base`](https://huggingface.co/roberta-base) | 125M | Robust pre-training; adversarial text |
+| 4 | **DeBERTa-v3** | Disentangled Attention | [`microsoft/deberta-v3-base`](https://huggingface.co/microsoft/deberta-v3-base) | 184M | State-of-the-art encoder candidate |
+| 5 | **SecureBERT** | Cybersecurity BERT | [`ehsanaul/securebert-base`](https://huggingface.co/ehsanaul/securebert-base) | 110M | Domain-specific security embeddings |
+| 6 | **ALBERT** | Lightweight Transformer | [`albert-base-v2`](https://huggingface.co/albert-base-v2) | 12M | Parameter-efficient comparison |
+| 7 | **ELECTRA** | Discriminator-pretrained | [`google/electra-small-discriminator`](https://huggingface.co/google/electra-small-discriminator) | 14M | Fast, compute-efficient encoder |
+| 8 | **TextCNN** | Convolutional (Kim) | *Custom implementation* | ~1M | Classical DL baseline |
+| 9 | **BiLSTM + Attention** | Recurrent + Attention | *Custom implementation* | ~2M | Sequential / obfuscation patterns |
+| 10 | **CNN-BiLSTM** | Hybrid CNN-RNN | *Custom implementation* | ~3M | Local + long-range feature fusion |
+| 11 | **DistilRoBERTa** | Distilled Transformer | [`distilroberta-base`](https://huggingface.co/distilroberta-base) | 82M | Accuracy–speed trade-off |
+| 12 | **XLNet** | Permutation LM | [`xlnet-base-cased`](https://huggingface.co/xlnet-base-cased) | 110M | Bidirectional context modeling |
+
+### Model Icons (Architecture Family)
+
+<p align="center">
+
+<img src="https://img.shields.io/badge/??%20DistilBERT-distilbert--base--uncased-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="DistilBERT"/>
+<img src="https://img.shields.io/badge/??%20BERT-bert--base--uncased-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="BERT"/>
+<img src="https://img.shields.io/badge/??%20RoBERTa-roberta--base-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="RoBERTa"/>
+<img src="https://img.shields.io/badge/??%20DeBERTa-deberta--v3--base-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="DeBERTa"/>
+
+<br/>
+
+<img src="https://img.shields.io/badge/??%20SecureBERT-securebert--base-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="SecureBERT"/>
+<img src="https://img.shields.io/badge/??%20ALBERT-albert--base--v2-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="ALBERT"/>
+<img src="https://img.shields.io/badge/??%20ELECTRA-electra--small-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="ELECTRA"/>
+<img src="https://img.shields.io/badge/??%20TextCNN-Custom-444876?style=flat-square" alt="TextCNN"/>
+
+<br/>
+
+<img src="https://img.shields.io/badge/??%20BiLSTM-Custom-444876?style=flat-square" alt="BiLSTM"/>
+<img src="https://img.shields.io/badge/??%20CNN--BiLSTM-Custom-444876?style=flat-square" alt="CNN-BiLSTM"/>
+<img src="https://img.shields.io/badge/??%20DistilRoBERTa-distilroberta--base-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="DistilRoBERTa"/>
+<img src="https://img.shields.io/badge/??%20XLNet-xlnet--base--cased-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="XLNet"/>
+
+</p>
+
+> **Legend:** ?? = Hugging Face pre-trained checkpoint · ?? = Custom PyTorch implementation
 
 ---
 
 ## Reference Papers
 
-Local copies are stored in `papers/` (downloaded from [Google Drive](https://drive.google.com/drive/folders/1K9nPcdnSYI6iGPgNNwDmbew5pM4voqwz)).
+Local copies in [`papers/`](papers/) · [Google Drive collection](https://drive.google.com/drive/folders/1K9nPcdnSYI6iGPgNNwDmbew5pM4voqwz)
 
-| # | Topic |
-|---|-------|
-| 1 | Effectiveness of existing prompt injection detection methods |
-| 4–6 | Real-world LLM compromise, AgentSentry, indirect injection |
-| 7, 10 | Network intrusion / malicious traffic classification (MLP, decision-making) |
-| 8–9, 11 | ARGUS — defending LLM agents against prompt injection |
-| 12 | CLAWGUARD — runtime security for LLM agents |
-| 13–15 | Multi-model hybrid defense, threat taxonomy, prompt injection attacks |
-| 16 | Federated learning poisoning detection |
-| 17–18 | MetaSecAlign — secure foundation LLM against prompt injection |
-| 19 | Systematic literature review on LLM prompt injection defenses |
-| 20–21 | Retrieval barrier, TaintP2X taint-style injection detection |
-
----
-
-## 12 Deep Learning Models to Implement
-
-The following models are selected for **text classification** on the Threat Matrix dataset. They span transformer encoders, lightweight distillation variants, CNN/RNN hybrids, and security-domain pre-trained models — suitable for binary and multiclass experiments within a capstone timeline.
-
-| # | Model | Type | Why Implement |
-|---|-------|------|---------------|
-| 1 | **DistilBERT** | Distilled Transformer | Fast baseline; official model already exists on this dataset |
-| 2 | **BERT-base-uncased** | Transformer Encoder | Strong general-purpose text classifier; widely cited baseline |
-| 3 | **RoBERTa-base** | Transformer Encoder | Improved pre-training over BERT; strong on adversarial text |
-| 4 | **DeBERTa-v3-base** | Transformer Encoder | Disentangled attention; top performance on GLUE-style tasks |
-| 5 | **SecureBERT** | Domain-specific BERT | Pre-trained on cybersecurity corpus; relevant for threat detection |
-| 6 | **ALBERT-base-v2** | Lightweight Transformer | Parameter-efficient; good for ablation vs full BERT |
-| 7 | **ELECTRA-small** | Discriminator-pretrained | Efficient alternative with competitive accuracy |
-| 8 | **TextCNN (Kim CNN)** | Convolutional | Classic short-text classifier; fast to train, good comparison point |
-| 9 | **BiLSTM + Attention** | Recurrent + Attention | Captures sequential patterns in obfuscated / encoded attacks |
-| 10 | **CNN-BiLSTM Hybrid** | CNN + RNN | Combines local n-gram features with long-range dependencies |
-| 11 | **DistilRoBERTa** | Distilled Transformer | Balance of RoBERTa accuracy and DistilBERT speed |
-| 12 | **XLNet-base** | Permutation LM | Handles bidirectional context; useful for indirect injection |
-
-### Suggested Experiment Matrix
-
-| Task | Models to prioritize |
-|------|---------------------|
-| **Binary detection** (benign vs malicious) | DistilBERT, BERT, SecureBERT, TextCNN, DistilRoBERTa |
-| **7-class intent classification** | RoBERTa, DeBERTa, BiLSTM+Attention, CNN-BiLSTM |
-| **Severity regression / scoring** | DeBERTa, RoBERTa, XLNet |
-| **Low-resource / fast inference** | DistilBERT, ALBERT, ELECTRA-small, TextCNN |
-
-### Evaluation Metrics
-
-- Accuracy, Precision, Recall, F1 (macro & weighted)
-- ROC-AUC (binary config)
-- Confusion matrix per intent class
-- Severity MAE (if predicting severity as regression)
-- Inference latency (ms/sample) for deployment comparison
+| Paper | Focus Area |
+|-------|------------|
+| `1.pdf` | Effectiveness of existing detection methods |
+| `4.pdf` – `6.pdf` | Real-world LLM compromise, AgentSentry, indirect injection |
+| `7.pdf`, `10.pdf` | Network intrusion & malicious traffic classification |
+| `8.pdf` – `9.pdf`, `11.pdf` | ARGUS — LLM agent defense |
+| `12.pdf` | CLAWGUARD — runtime agent security |
+| `13.pdf` – `15.pdf` | Hybrid defense, threat taxonomy, injection attacks |
+| `16.pdf` | Federated learning poisoning detection |
+| `17.pdf` – `18.pdf` | MetaSecAlign — secure foundation LLM |
+| `19.pdf` | Systematic literature review on LLM defenses |
+| `20.pdf` – `21.pdf` | Retrieval barrier, TaintP2X injection detection |
 
 ---
 
-## Project Structure (planned)
+## Experiment Design
+
+### Task–Model Mapping
+
+| Experiment | Recommended Models | Primary Metrics |
+|------------|-------------------|-----------------|
+| **Binary detection** | DistilBERT, BERT, SecureBERT, TextCNN, DistilRoBERTa | Accuracy, F1, ROC-AUC |
+| **7-class intent classification** | RoBERTa, DeBERTa, BiLSTM+Attention, CNN-BiLSTM | Macro-F1, Confusion Matrix |
+| **Severity scoring** | DeBERTa, RoBERTa, XLNet | MAE, RMSE |
+| **Low-latency deployment** | DistilBERT, ALBERT, ELECTRA, TextCNN | Latency (ms/sample), F1 |
+
+### Evaluation Protocol
+
+```
+Accuracy · Precision · Recall · F1 (macro & weighted)
+ROC-AUC (binary) · Confusion matrix (multiclass)
+Severity MAE · Inference latency · Model size (MB)
+```
+
+---
+
+## Project Structure
 
 ```
 model/
-??? papers/              # Reference PDFs
-??? configs/             # Training hyperparameters
-??? src/                 # Training, evaluation, and inference code
-??? scripts/             # Data download and utility scripts
-??? outputs/             # Checkpoints, logs, plots
+??? papers/                  # Reference literature (PDF)
+??? configs/                 # Hyperparameters & experiment configs
+??? src/
+?   ??? data/                # Dataset loading & preprocessing
+?   ??? models/              # Model definitions (transformers + custom)
+?   ??? training/            # Training loops & checkpoints
+?   ??? evaluation/          # Metrics, plots, benchmark reports
+??? scripts/                 # Download & utility scripts
+??? outputs/                 # Checkpoints, logs, result tables
+??? requirements.txt         # Pinned dependencies
 ??? README.md
 ```
 
@@ -128,9 +265,17 @@ model/
 
 ## Getting Started
 
+### 1. Clone & set up environment
+
 ```bash
-pip install torch transformers datasets scikit-learn pandas
+git clone <repository-url>
+cd model
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+pip install -r requirements.txt
 ```
+
+### 2. Load dataset & baseline model
 
 ```python
 from datasets import load_dataset
@@ -143,11 +288,17 @@ model = AutoModelForSequenceClassification.from_pretrained(
 )
 ```
 
+### 3. Run training (planned)
+
+```bash
+python -m src.training.train_cli --model distilbert-base-uncased --config configs/default.yaml
+```
+
 ---
 
 ## Citation
 
-If you use the dataset, cite:
+If you use the **Threat Matrix** dataset in this thesis, please cite:
 
 ```bibtex
 @dataset{jajoo2026threatmatrix,
@@ -163,4 +314,18 @@ If you use the dataset, cite:
 
 ## License
 
-Research use only. Dataset license: **CC BY-NC 4.0**. Commercial use requires permission from the dataset author.
+| Component | License |
+|-----------|---------|
+| **This repository** | Academic / research use (capstone thesis) |
+| **Threat Matrix dataset** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — commercial use requires author permission |
+| **Pre-trained models** | Subject to respective Hugging Face model licenses |
+
+---
+
+<div align="center">
+
+**Daffodil International University · 7th Capstone Design · 2026**
+
+*LLM Security · Prompt Injection Detection · Deep Learning*
+
+</div>
