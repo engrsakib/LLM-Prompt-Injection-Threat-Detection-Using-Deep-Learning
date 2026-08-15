@@ -4,3 +4,6 @@ dataset_config: multiclass
 lowercase: false
 near_duplicate_threshold: 0.85
 drop_invalid_rows: true
+phase2_enabled: true
+balancing_strategy: oversample_median
+augment_enabled: true

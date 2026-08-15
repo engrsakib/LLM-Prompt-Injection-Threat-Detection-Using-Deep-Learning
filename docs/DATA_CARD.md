@@ -117,6 +117,26 @@ data/
         └── dedup_report.json
 ```
 
+## Phase 2 Enrichment
+
+Phase 2 runs after Phase 1 and produces paper-quality training artifacts.
+
+| Feature | Output |
+|---------|--------|
+| Obfuscation-aware normalization | `obfuscation_detected`, `obfuscation_types`, `text_obfuscation_aware` |
+| Severity bucket analysis | `reports/severity_buckets.json` |
+| Ambiguity hard-case subsets | `subsets/ambiguity_{split}.parquet` |
+| Minority-class balancing | `train_balanced.parquet` |
+| Train-only augmentation | `train_augmented.parquet` |
+| MLflow dataset versioning | `mlruns/` experiment `data-engineering` |
+
+Severity buckets:
+
+- `low_1_2` (1–2)
+- `moderate_3_4` (3–4)
+- `high_5_6` (5–6)
+- `critical_7_10` (7–10)
+
 ## Reproducibility
 
 Each run generates:
@@ -148,3 +168,4 @@ Each run generates:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | 2026-08-15 | Phase-1 pipeline: ingest, clean, dedup, validate, parquet export |
+| 2.0.0 | 2026-08-15 | Phase-2 enrichment: obfuscation, severity buckets, ambiguity subsets, balancing, augmentation, MLflow |

@@ -32,6 +32,7 @@ kaggle.json
 
 # Outputs and caches
 outputs/
+mlruns/
 data/processed/
 data/raw/
 .dvc/

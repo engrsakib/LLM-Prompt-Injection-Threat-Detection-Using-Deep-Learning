@@ -4,11 +4,25 @@ data:
   dataset: neuralchemy/prompt-injection-Threat-Matrix
   config: multiclass
   data_dir: data
+  processed_dir: data/processed
   lowercase: false
   drop_invalid_rows: true
 
 dedup:
   near_duplicate_threshold: 0.85
+
+phase2:
+  enabled: true
+  balancing_strategy: oversample_median
+  augmentation:
+    enabled: true
+    minority_only: true
+    synonym_replace_prob: 0.25
+    token_noise_prob: 0.10
+    max_augmentations_per_row: 1
+  mlflow:
+    enabled: true
+    experiment_name: data-engineering
 
 output:
   processed_dir: data/processed

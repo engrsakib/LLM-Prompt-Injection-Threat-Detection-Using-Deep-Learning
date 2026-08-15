@@ -308,6 +308,56 @@ Full documentation: [`docs/DATA_CARD.md`](docs/DATA_CARD.md)
 
 ---
 
+## Data Engineering (Phase 2)
+
+Paper-quality enrichment for obfuscation, hard-case evaluation, balancing, and experiment tracking.
+
+### Run locally
+
+```bash
+python -m src.data.prepare --config configs/data.yaml --phase all
+# or Phase 2 only (requires Phase 1 outputs)
+python -m src.data.enrich --config configs/data.yaml
+```
+
+### Run with DVC
+
+```bash
+dvc repro prepare
+dvc repro enrich
+```
+
+### What it adds
+
+| Step | Module | Description |
+|------|--------|-------------|
+| Obfuscation-aware normalization | `src/data/obfuscation.py` | Detect base64/hex/leetspeak; preserve attack signal |
+| Severity buckets | `src/data/analysis.py` | Buckets: 1–2, 3–4, 5–6, 7–10 |
+| Ambiguity subsets | `src/data/analysis.py` | Export `ambiguity=true` hard-case splits |
+| Minority balancing | `src/data/balancing.py` | Train-only oversampling (`oversample_median`) |
+| Train-only augmentation | `src/data/augment.py` | Synonym, token noise, paraphrase variants |
+| MLflow dataset versioning | `src/data/mlflow_tracking.py` | Logs snapshot ID + artifacts per run |
+
+### Phase 2 artifacts
+
+```
+data/processed/
+??? train_balanced.parquet
+??? train_augmented.parquet
+??? subsets/
+?   ??? ambiguity_train.parquet
+?   ??? ambiguity_validation.parquet
+?   ??? ambiguity_test.parquet
+??? reports/
+    ??? severity_buckets.json
+    ??? severity_buckets.md
+    ??? ambiguity_subsets.json
+```
+
+Training experiments automatically log dataset version via `src/training/train_cli.py`.
+
+---
+
 ## Project Structure
 
 ```
