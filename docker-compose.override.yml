@@ -1,0 +1,11 @@
+version: "3.8"
+services:
+  app:
+    volumes:
+      - ./:/app
+      - ./outputs:/app/outputs
+      - ./data:/app/data
+    environment:
+      - CONFIG=configs/default.yaml
+    command: ["bash", "-c", "python -m src.training.train_cli --config ${CONFIG:-configs/default.yaml}"]
+

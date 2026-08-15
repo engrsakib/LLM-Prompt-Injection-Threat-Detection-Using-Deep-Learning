@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: prompt-injection-model:latest
+    environment:
+      - CONFIG=configs/default.yaml
+    volumes:
+      - ./outputs:/app/outputs
+      - ./data:/app/data
+    restart: "no"
+
