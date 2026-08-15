@@ -1,1 +1,25 @@
-stages:\n+  prepare:\n+    cmd: python src/data/prepare.py\n+    deps:\n+      - src/data/prepare.py\n+    outs:\n+      - data/processed\n+  augment:\n+    cmd: python -c \"from src.data.augment import paraphrase; print('augment stub')\"\n+    deps:\n+      - src/data/augment.py\n+    outs:\n+      - data/augmented\n+  featurize:\n+    cmd: python -c \"print('featurize stub')\"\n+    deps: []\n+    outs: []\n+
+stages:
+  prepare:
+    cmd: python -m src.data.prepare --config configs/data.yaml
+    deps:
+      - configs/data.yaml
+      - params.yaml
+      - src/data/constants.py
+      - src/data/cleaning.py
+      - src/data/dedup.py
+      - src/data/ingest.py
+      - src/data/pipeline.py
+      - src/data/prepare.py
+      - src/data/reporting.py
+      - src/data/validation.py
+    params:
+      - params.yaml
+    outs:
+      - data/processed/train.parquet
+      - data/processed/validation.parquet
+      - data/processed/test.parquet
+      - data/processed/metadata.json
+      - data/processed/reports/class_distribution.json
+      - data/processed/reports/class_distribution.md
+      - data/processed/reports/validation_report.json
+      - data/processed/reports/dedup_report.json

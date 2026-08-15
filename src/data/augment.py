@@ -1,1 +1,24 @@
-\"\"\"Data augmentation helpers (lightweight stubs).\n+\n+Implementations should be expanded when running experiments.\n+\"\"\"\n+import random\n+\n+def synonym_replace(text, n=1):\n+    # Placeholder: real implementation should use WordNet or contextual embeddings\n+    return text\n+\n+def token_noise(text, p=0.05):\n+    # Randomly drop or duplicate characters/subwords as basic robustness\n+    chars = list(text)\n+    for i in range(len(chars)):\n+        if random.random() < p:\n+            chars[i] = ''\n+    return ''.join(chars)\n+\n+def paraphrase(text):\n+    # Placeholder for paraphrasing (T5 / Pegasus)\n+    return text\n+\n*** End Patch"}ークEvaluation to=functions.ApplyPatch John's code-completionInterruptedUnexpected token. Let's redo. Sorry. Let's call ApplyPatch properly. ранее we had an error: the previous ApplyPatch succeeded. The last ApplyPatch call contained weird characters. Let's attempt again carefully._retry.``"}]}នៅ"}]}
+"""Data augmentation helpers (Phase 2 — not yet implemented)."""
+
+from __future__ import annotations
+
+import random
+
+
+def synonym_replace(text: str, n: int = 1) -> str:
+    """Placeholder for synonym replacement augmentation."""
+    return text
+
+
+def token_noise(text: str, p: float = 0.05) -> str:
+    """Apply simple character-level noise for robustness testing."""
+    chars = list(text)
+    for index in range(len(chars)):
+        if random.random() < p:
+            chars[index] = ""
+    return "".join(chars)
+
+
+def paraphrase(text: str) -> str:
+    """Placeholder for T5/Pegasus paraphrase augmentation."""
+    return text

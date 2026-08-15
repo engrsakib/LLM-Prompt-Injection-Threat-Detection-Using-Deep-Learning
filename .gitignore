@@ -57,3 +57,6 @@ env/
 
 # Cursor/IDE
 .cursor/
+
+# Local planning artifacts
+project-plan/

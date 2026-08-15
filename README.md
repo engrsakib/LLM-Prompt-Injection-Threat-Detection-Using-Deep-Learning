@@ -36,6 +36,7 @@
 - [Model Registry](#model-registry)
 - [Reference Papers](#reference-papers)
 - [Experiment Design](#experiment-design)
+- [Data Engineering (Phase 1)](#data-engineering-phase-1)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
 - [Citation](#citation)
@@ -260,20 +261,70 @@ Severity MAE ù Inference latency ù Model size (MB)
 
 ---
 
+## Data Engineering (Phase 1)
+
+Professional-grade preprocessing pipeline for IEEE reproducibility.
+
+### Run locally
+
+```bash
+pip install -r requirements.txt
+python -m src.data.prepare --config configs/data.yaml
+```
+
+### Run with DVC
+
+```bash
+dvc repro prepare
+```
+
+### What it does
+
+| Step | Module | Description |
+|------|--------|-------------|
+| Ingestion | `src/data/ingest.py` | Hugging Face download + snapshot ID |
+| Cleaning | `src/data/cleaning.py` | Unicode NFKC, control chars, zero-width removal |
+| Dedup | `src/data/dedup.py` | Exact (SHA-256) + near (MinHash LSH) |
+| Validation | `src/data/validation.py` | intent, binary_label, severity, technique checks |
+| Reporting | `src/data/reporting.py` | Class distribution JSON + Markdown |
+| Export | `src/data/pipeline.py` | Parquet to `data/processed/` |
+
+### Output artifacts
+
+```
+data/processed/
+??? train.parquet
+??? validation.parquet
+??? test.parquet
+??? metadata.json
+??? reports/
+    ??? class_distribution.json
+    ??? class_distribution.md
+    ??? validation_report.json
+    ??? dedup_report.json
+```
+
+Full documentation: [`docs/DATA_CARD.md`](docs/DATA_CARD.md)
+
+---
+
 ## Project Structure
 
 ```
 model/
 ??? papers/                  # Reference literature (PDF)
-??? configs/                 # Hyperparameters & experiment configs
+??? configs/                 # Experiment & data pipeline configs
+??? docs/                    # DATA_CARD and research docs
 ??? src/
-?   ??? data/                # Dataset loading & preprocessing
+?   ??? data/                # Ingest, clean, dedup, validate, export
 ?   ??? models/              # Model definitions (transformers + custom)
 ?   ??? training/            # Training loops & checkpoints
-?   ??? evaluation/          # Metrics, plots, benchmark reports
+?   ??? eval/                # Metrics, plots, benchmark reports
 ??? scripts/                 # Download & utility scripts
+??? data/                    # Raw + processed artifacts (gitignored)
 ??? outputs/                 # Checkpoints, logs, result tables
-??? requirements.txt         # Pinned dependencies
+??? dvc.yaml                 # DVC pipeline definition
+??? requirements.txt
 ??? README.md
 ```
 
@@ -334,7 +385,7 @@ See [`LICENSE`](LICENSE) for the full MIT license text.
 
 | Component | License | Holder |
 |-----------|---------|--------|
-| **This repository** | [MIT License](LICENSE) | Md. Nazmus Sakib ∑ Kazi Omar Faruq |
+| **This repository** | [MIT License](LICENSE) | Md. Nazmus Sakib ù Kazi Omar Faruq |
 | **Threat Matrix dataset** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) | Sanskar Jajoo / Neuralchemy |
 | **Pre-trained models** | Respective Hugging Face model licenses | Model authors |
 
@@ -351,7 +402,7 @@ You **must**:
 
 The software is provided **"AS IS"**, without warranty of any kind. The authors are not liable for any damages arising from use of this software.
 
-**Copyright © 2026** Md. Nazmus Sakib ([engrskib.com](https://engrskib.com)) and Kazi Omar Faruq.
+**Copyright ù 2026** Md. Nazmus Sakib ([engrskib.com](https://engrskib.com)) and Kazi Omar Faruq.
 
 ### CC BY-NC 4.0 (External Dataset Only)
 
@@ -359,13 +410,13 @@ The [Threat Matrix dataset](https://huggingface.co/datasets/neuralchemy/prompt-i
 
 You **may** (non-commercial only):
 
-- **Share** ó copy and redistribute the dataset in any medium or format
-- **Adapt** ó remix, transform, and build upon the dataset
+- **Share** ù copy and redistribute the dataset in any medium or format
+- **Adapt** ù remix, transform, and build upon the dataset
 
 You **must**:
 
-- **Attribute** ó give appropriate credit, provide a link to the license, and indicate if changes were made
-- **NonCommercial** ó you may not use the dataset for commercial purposes without permission from the dataset author
+- **Attribute** ù give appropriate credit, provide a link to the license, and indicate if changes were made
+- **NonCommercial** ù you may not use the dataset for commercial purposes without permission from the dataset author
 
 You **may not**:
 
@@ -378,11 +429,11 @@ You **may not**:
 
 <div align="center">
 
-**Daffodil International University ∑ 7th Capstone Design ∑ 2026**
+**Daffodil International University ù 7th Capstone Design ù 2026**
 
-**Md. Nazmus Sakib** ([engrskib.com](https://engrskib.com)) ∑ **Kazi Omar Faruq**
+**Md. Nazmus Sakib** ([engrskib.com](https://engrskib.com)) ù **Kazi Omar Faruq**
 
-*LLM Security ∑ Prompt Injection Detection ∑ Deep Learning*
+*LLM Security ù Prompt Injection Detection ù Deep Learning*
 
 </div>
 

@@ -1,42 +1,53 @@
-import os
-import json
-from pathlib import Path
-from datasets import load_dataset
+"""CLI entrypoint for Phase-1 data preparation."""
 
-DATA_DIR = Path("data")
+from __future__ import annotations
 
-def download_raw(dataset_name="neuralchemy/prompt-injection-Threat-Matrix", config="multiclass"):
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    ds = load_dataset(dataset_name, config)
-    raw_dir = DATA_DIR / "raw"
-    raw_dir.mkdir(exist_ok=True)
-    for split in ds.keys():
-        out = raw_dir / f"{split}.jsonl"
-        with out.open("w", encoding="utf-8") as fh:
-            for ex in ds[split]:
-                fh.write(json.dumps(ex, ensure_ascii=False) + "\\n")
-    return raw_dir
+import argparse
+import logging
+import sys
 
-def preprocess_text(text, lower=True):
-    if lower:
-        text = text.lower()
-    # normalize whitespace
-    text = \" \".join(text.split())
-    return text
+from src.data.pipeline import PipelineConfig, run_prepare_pipeline
 
-def prepare_processed(raw_dir: Path, out_dir: Path = Path("data/processed"), seed: int = 42):
-    out_dir.mkdir(parents=True, exist_ok=True)
-    # Simple converter: read jsonl, apply preprocess, write to processed parquet or jsonl
-    for f in raw_dir.glob("*.jsonl"):
-        out_path = out_dir / f.name
-        with f.open(\"r\", encoding=\"utf-8\") as rf, out_path.open(\"w\", encoding=\"utf-8\") as wf:
-            for line in rf:
-                obj = json.loads(line)
-                obj[\"text\"] = preprocess_text(obj.get(\"text\",\"\"), lower=True)
-                wf.write(json.dumps(obj, ensure_ascii=False) + \"\\n\")
-    return out_dir
 
-if __name__ == \"__main__\":
-    raw = download_raw()
-    prepare_processed(raw)
+def configure_logging(verbose: bool) -> None:
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
 
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Prepare Threat Matrix dataset for training (Phase 1)."
+    )
+    parser.add_argument(
+        "--config",
+        default="configs/data.yaml",
+        help="Path to data pipeline YAML config.",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    configure_logging(args.verbose)
+
+    config = PipelineConfig.from_yaml(args.config)
+    report = run_prepare_pipeline(config)
+
+    print("Data preparation completed successfully.")
+    print(f"Snapshot ID: {report['snapshot']['snapshot_id']}")
+    print("Processed splits:")
+    for split, count in report["distribution_summary"].items():
+        print(f"  - {split}: {count} rows")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,6 @@
+seed: 42
+dataset_name: neuralchemy/prompt-injection-Threat-Matrix
+dataset_config: multiclass
+lowercase: false
+near_duplicate_threshold: 0.85
+drop_invalid_rows: true

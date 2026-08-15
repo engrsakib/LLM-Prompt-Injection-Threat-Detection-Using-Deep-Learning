@@ -1,0 +1,15 @@
+seed: 42
+
+data:
+  dataset: neuralchemy/prompt-injection-Threat-Matrix
+  config: multiclass
+  data_dir: data
+  lowercase: false
+  drop_invalid_rows: true
+
+dedup:
+  near_duplicate_threshold: 0.85
+
+output:
+  processed_dir: data/processed
+  reports_dir: data/processed/reports
