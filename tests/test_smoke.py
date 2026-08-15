@@ -1,0 +1,1 @@
+import torch\n+from src.models.textcnn import TextCNN\n+\n+def test_textcnn_forward():\n+    model = TextCNN(vocab_size=100, embed_dim=16, num_classes=7)\n+    x = torch.randint(0, 100, (4, 32))\n+    out = model(x)\n+    assert out.shape == (4, 7)\n+\n*** End Patch"}]}

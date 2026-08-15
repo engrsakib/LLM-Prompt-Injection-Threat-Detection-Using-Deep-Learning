@@ -19,19 +19,30 @@ wheels/
 .installed.cfg
 *.egg
 
+# Environment / secrets
 .env
 .env.*
 kaggle.json
+
+# Model weights
 *.pth
 *.pt
 *.keras
 *.pkl
 
+# Outputs and caches
 outputs/
+data/processed/
+data/raw/
+.dvc/
+.dvc/cache/
 weights/*.pth
 !weights/.gitkeep
 
+# Notebooks
 .ipynb_checkpoints/
+
+# Editor temp files
 *.swp
 *.swo
 *~
@@ -39,8 +50,10 @@ weights/*.pth
 .DS_Store
 Thumbs.db
 
+# Virtual envs
 .venv/
 venv/
 env/
 
+# Cursor/IDE
 .cursor/

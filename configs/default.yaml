@@ -1,0 +1,14 @@
+seed: 42
+model: distilbert-base-uncased
+num_labels: 7
+batch_size: 16
+epochs: 3
+learning_rate: 2e-5
+data:
+  dataset: neuralchemy/prompt-injection-Threat-Matrix
+  config: multiclass
+output_dir: outputs/
+mlflow:
+  tracking_uri: file:./mlruns
+  experiment_name: prompt-injection
+

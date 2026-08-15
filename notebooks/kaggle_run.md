@@ -1,0 +1,1 @@
+# Kaggle Run Guide\n+\n+This document contains the steps to run a reproducible experiment on Kaggle. Convert to a notebook to execute cells.\n+\n+1. Install dependencies: `!pip install -r requirements.txt`\n+2. Download dataset: `!python scripts/download_data.py`\n+3. Run short training: `!python -m src.training.train_cli --config configs/kaggle_debug.yaml`\n+\n*** End Patch"}]}

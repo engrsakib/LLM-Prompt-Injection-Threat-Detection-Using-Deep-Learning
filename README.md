@@ -385,3 +385,36 @@ You **may not**:
 *LLM Security · Prompt Injection Detection · Deep Learning*
 
 </div>
+
+---
+
+## Quickstart: Docker (CPU-only)
+
+Build:
+
+```
+docker build -t prompt-injection-model -f docker/Dockerfile .
+```
+
+Run (mount outputs for checkpoints):
+
+```
+docker run --rm -v %cd%/outputs:/app/outputs prompt-injection-model --config configs/default.yaml
+```
+
+Use small batch sizes when training on CPU.
+
+---
+
+## Quickstart: Kaggle
+
+1. Upload processed `data/processed/` to Kaggle as a dataset or use Hugging Face streaming.
+2. In a Kaggle notebook cell:
+
+```bash
+!git clone <repo-url> repo && cd repo
+!pip install -r requirements.txt
+!python -m src.training.train_cli --config configs/kaggle_debug.yaml
+```
+
+A starter notebook is provided at `notebooks/kaggle_run.md`.

@@ -1,0 +1,1 @@
+import json\n+from pathlib import Path\n+\n+def save_jsonl(items, path):\n+    p = Path(path)\n+    p.parent.mkdir(parents=True, exist_ok=True)\n+    with p.open(\"w\", encoding=\"utf-8\") as fh:\n+        for it in items:\n+            fh.write(json.dumps(it, ensure_ascii=False) + \"\\n\")\n+\n*** End Patch"}]}
