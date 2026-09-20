@@ -6,7 +6,8 @@
 
 <br/>
 
-**Author:** [Md. Nazmus Sakib](https://engrskib.com) ù **Co-Author:** Kazi Omar Faruq
+
+**Author:** [Md. Nazmus Sakib](https://engrskib.com) ÔøΩ **Co-Author:** Kazi Omar Faruq
 
 <br/>
 
@@ -46,7 +47,7 @@
 
 ## Overview
 
-This repository supports a **capstone thesis** on LLM security, focused on **prompt injection detection**. The objective is to train, compare, and benchmark multiple deep learning architectures on a professional-grade threat intelligence dataset ù extending beyond binary classification toward multi-class intent recognition, severity scoring, and technique-aware defenses.
+This repository supports a **capstone thesis** on LLM security, focused on **prompt injection detection**. The objective is to train, compare, and benchmark multiple deep learning architectures on a professional-grade threat intelligence dataset ÔøΩ extending beyond binary classification toward multi-class intent recognition, severity scoring, and technique-aware defenses.
 
 The research is grounded in recent work on prompt injection taxonomies, LLM agent security, and adversarial NLP, including **ARGUS**, **AgentSentry**, **CLAWGUARD**, **MetaSecAlign**, and systematic reviews of LLM defense mechanisms. Full PDFs are available in [`papers/`](papers/).
 
@@ -131,8 +132,8 @@ tqdm>=4.66.0
 |----------|-------|
 | **Repository** | [`neuralchemy/prompt-injection-Threat-Matrix`](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix) |
 | **Samples** | 32,320 curated prompts |
-| **Splits** | 80% train ù 10% validation ù 10% test |
-| **Configs** | `binary` ù `multiclass` (default) |
+| **Splits** | 80% train ÔøΩ 10% validation ÔøΩ 10% test |
+| **Configs** | `binary` ÔøΩ `multiclass` (default) |
 | **Format** | Parquet |
 | **Language** | English |
 | **License** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) |
@@ -155,7 +156,7 @@ tqdm>=4.66.0
 |-------|------|-------------|
 | `text` | string | Input prompt |
 | `label` / `intent_label` | int | Classification target |
-| `severity` | int | Threat severity (1ù10) |
+| `severity` | int | Threat severity (1ÔøΩ10) |
 | `technique` | string | Attack technique category |
 | `surface` | string | Targeted attack surface |
 | `ambiguity` | bool | Borderline / hard-to-classify flag |
@@ -189,7 +190,7 @@ Twelve deep learning models selected for comparative evaluation. Each entry incl
 | 8 | **TextCNN** | Convolutional (Kim) | *Custom implementation* | ~1M | Classical DL baseline |
 | 9 | **BiLSTM + Attention** | Recurrent + Attention | *Custom implementation* | ~2M | Sequential / obfuscation patterns |
 | 10 | **CNN-BiLSTM** | Hybrid CNN-RNN | *Custom implementation* | ~3M | Local + long-range feature fusion |
-| 11 | **DistilRoBERTa** | Distilled Transformer | [`distilroberta-base`](https://huggingface.co/distilroberta-base) | 82M | Accuracyùspeed trade-off |
+| 11 | **DistilRoBERTa** | Distilled Transformer | [`distilroberta-base`](https://huggingface.co/distilroberta-base) | 82M | AccuracyÔøΩspeed trade-off |
 | 12 | **XLNet** | Permutation LM | [`xlnet-base-cased`](https://huggingface.co/xlnet-base-cased) | 110M | Bidirectional context modeling |
 
 ### Model Icons (Architecture Family)
@@ -217,32 +218,32 @@ Twelve deep learning models selected for comparative evaluation. Each entry incl
 
 </p>
 
-> **Legend:** ?? = Hugging Face pre-trained checkpoint ù ?? = Custom PyTorch implementation
+> **Legend:** ?? = Hugging Face pre-trained checkpoint ÔøΩ ?? = Custom PyTorch implementation
 
 ---
 
 ## Reference Papers
 
-Local copies in [`papers/`](papers/) ù [Google Drive collection](https://drive.google.com/drive/folders/1K9nPcdnSYI6iGPgNNwDmbew5pM4voqwz)
+Local copies in [`papers/`](papers/) ÔøΩ [Google Drive collection](https://drive.google.com/drive/folders/1K9nPcdnSYI6iGPgNNwDmbew5pM4voqwz)
 
 | Paper | Focus Area |
 |-------|------------|
 | `1.pdf` | Effectiveness of existing detection methods |
-| `4.pdf` ù `6.pdf` | Real-world LLM compromise, AgentSentry, indirect injection |
+| `4.pdf` ÔøΩ `6.pdf` | Real-world LLM compromise, AgentSentry, indirect injection |
 | `7.pdf`, `10.pdf` | Network intrusion & malicious traffic classification |
-| `8.pdf` ù `9.pdf`, `11.pdf` | ARGUS ù LLM agent defense |
-| `12.pdf` | CLAWGUARD ù runtime agent security |
-| `13.pdf` ù `15.pdf` | Hybrid defense, threat taxonomy, injection attacks |
+| `8.pdf` ÔøΩ `9.pdf`, `11.pdf` | ARGUS ÔøΩ LLM agent defense |
+| `12.pdf` | CLAWGUARD ÔøΩ runtime agent security |
+| `13.pdf` ÔøΩ `15.pdf` | Hybrid defense, threat taxonomy, injection attacks |
 | `16.pdf` | Federated learning poisoning detection |
-| `17.pdf` ù `18.pdf` | MetaSecAlign ù secure foundation LLM |
+| `17.pdf` ÔøΩ `18.pdf` | MetaSecAlign ÔøΩ secure foundation LLM |
 | `19.pdf` | Systematic literature review on LLM defenses |
-| `20.pdf` ù `21.pdf` | Retrieval barrier, TaintP2X injection detection |
+| `20.pdf` ÔøΩ `21.pdf` | Retrieval barrier, TaintP2X injection detection |
 
 ---
 
 ## Experiment Design
 
-### TaskùModel Mapping
+### TaskÔøΩModel Mapping
 
 | Experiment | Recommended Models | Primary Metrics |
 |------------|-------------------|-----------------|
@@ -254,9 +255,9 @@ Local copies in [`papers/`](papers/) ù [Google Drive collection](https://drive.g
 ### Evaluation Protocol
 
 ```
-Accuracy ù Precision ù Recall ù F1 (macro & weighted)
-ROC-AUC (binary) ù Confusion matrix (multiclass)
-Severity MAE ù Inference latency ù Model size (MB)
+Accuracy ÔøΩ Precision ÔøΩ Recall ÔøΩ F1 (macro & weighted)
+ROC-AUC (binary) ÔøΩ Confusion matrix (multiclass)
+Severity MAE ÔøΩ Inference latency ÔøΩ Model size (MB)
 ```
 
 ---
@@ -332,7 +333,7 @@ dvc repro enrich
 | Step | Module | Description |
 |------|--------|-------------|
 | Obfuscation-aware normalization | `src/data/obfuscation.py` | Detect base64/hex/leetspeak; preserve attack signal |
-| Severity buckets | `src/data/analysis.py` | Buckets: 1ñ2, 3ñ4, 5ñ6, 7ñ10 |
+| Severity buckets | `src/data/analysis.py` | Buckets: 1ÔøΩ2, 3ÔøΩ4, 5ÔøΩ6, 7ÔøΩ10 |
 | Ambiguity subsets | `src/data/analysis.py` | Export `ambiguity=true` hard-case splits |
 | Minority balancing | `src/data/balancing.py` | Train-only oversampling (`oversample_median`) |
 | Train-only augmentation | `src/data/augment.py` | Synonym, token noise, paraphrase variants |
@@ -499,7 +500,7 @@ See [`LICENSE`](LICENSE) for the full MIT license text.
 
 | Component | License | Holder |
 |-----------|---------|--------|
-| **This repository** | [MIT License](LICENSE) | Md. Nazmus Sakib ù Kazi Omar Faruq |
+| **This repository** | [MIT License](LICENSE) | Md. Nazmus Sakib ÔøΩ Kazi Omar Faruq |
 | **Threat Matrix dataset** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) | Sanskar Jajoo / Neuralchemy |
 | **Pre-trained models** | Respective Hugging Face model licenses | Model authors |
 
@@ -516,7 +517,7 @@ You **must**:
 
 The software is provided **"AS IS"**, without warranty of any kind. The authors are not liable for any damages arising from use of this software.
 
-**Copyright ù 2026** Md. Nazmus Sakib ([engrskib.com](https://engrskib.com)) and Kazi Omar Faruq.
+**Copyright ÔøΩ 2026** Md. Nazmus Sakib ([engrskib.com](https://engrskib.com)) and Kazi Omar Faruq.
 
 ### CC BY-NC 4.0 (External Dataset Only)
 
@@ -524,13 +525,13 @@ The [Threat Matrix dataset](https://huggingface.co/datasets/neuralchemy/prompt-i
 
 You **may** (non-commercial only):
 
-- **Share** ù copy and redistribute the dataset in any medium or format
-- **Adapt** ù remix, transform, and build upon the dataset
+- **Share** ÔøΩ copy and redistribute the dataset in any medium or format
+- **Adapt** ÔøΩ remix, transform, and build upon the dataset
 
 You **must**:
 
-- **Attribute** ù give appropriate credit, provide a link to the license, and indicate if changes were made
-- **NonCommercial** ù you may not use the dataset for commercial purposes without permission from the dataset author
+- **Attribute** ÔøΩ give appropriate credit, provide a link to the license, and indicate if changes were made
+- **NonCommercial** ÔøΩ you may not use the dataset for commercial purposes without permission from the dataset author
 
 You **may not**:
 
@@ -543,11 +544,11 @@ You **may not**:
 
 <div align="center">
 
-**Daffodil International University ù 7th Capstone Design ù 2026**
+**Daffodil International University ÔøΩ 7th Capstone Design ÔøΩ 2026**
 
-**Md. Nazmus Sakib** ([engrskib.com](https://engrskib.com)) ù **Kazi Omar Faruq**
+**Md. Nazmus Sakib** ([engrskib.com](https://engrskib.com)) ÔøΩ **Kazi Omar Faruq**
 
-*LLM Security ù Prompt Injection Detection ù Deep Learning*
+*LLM Security ÔøΩ Prompt Injection Detection ÔøΩ Deep Learning*
 
 </div>
 
