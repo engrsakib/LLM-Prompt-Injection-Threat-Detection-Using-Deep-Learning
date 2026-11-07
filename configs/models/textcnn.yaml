@@ -1,0 +1,22 @@
+# Auto-derived from src/models/registry.py defaults; edit training.* to tune.
+model:
+  model_id: textcnn
+  display_name: TextCNN
+  loader: textcnn
+  checkpoint: null
+  revision: null
+  compute_tier: cpu_ok
+  status_declared: implemented
+  access_note: custom implementation; vocab fitted on train only
+training:
+  learning_rate: 0.001
+  batch_size: 64
+  grad_accum: 1
+  epochs: 10
+  max_length: 256
+  precision: fp32
+  warmup_ratio: 0.0
+  weight_decay: 0.0
+  scheduler: linear
+  vocab_min_freq: 2
+  vocab_max_size: 50000

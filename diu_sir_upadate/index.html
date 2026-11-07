@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capstone Progress Update — LLM Prompt Injection Detection</title>
+  <style>
+    :root {
+      --text: #1a1a1a;
+      --muted: #444;
+      --border: #ccc;
+      --bg: #fafafa;
+      --card: #fff;
+      --complete: #0d6832;
+      --progress: #b45309;
+      --planned: #374151;
+      --risk: #991b1b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 11pt;
+      line-height: 1.55;
+      color: var(--text);
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 3rem;
+      background: var(--bg);
+    }
+    header {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 1.45rem;
+      margin: 0 0 0.5rem;
+      line-height: 1.3;
+    }
+    .meta { font-size: 0.95rem; color: var(--muted); margin: 0.25rem 0; }
+    .meta a { color: #0645ad; }
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    nav.toc ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+    nav.toc li { margin: 0.35rem 0; }
+    section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    h2 {
+      font-size: 1.15rem;
+      margin: 0 0 0.75rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 2px solid #333;
+    }
+    h3 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+    p { margin: 0.5rem 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 0.75rem 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.55rem;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: #eee; font-weight: bold; }
+    .dashboard {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+    }
+    .chip {
+      display: inline-block;
+      padding: 0.35rem 0.65rem;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      font-family: system-ui, sans-serif;
+      font-weight: 600;
+      color: #fff;
+    }
+    .chip.complete { background: var(--complete); }
+    .chip.progress { background: var(--progress); }
+    .chip.planned { background: var(--planned); }
+    .chip.risk { background: var(--risk); }
+    ul.compact { margin: 0.4rem 0; padding-left: 1.35rem; }
+    ul.compact li { margin: 0.25rem 0; }
+    ul.timeline { list-style: none; padding-left: 0; }
+    ul.timeline li {
+      padding: 0.35rem 0 0.35rem 1.75rem;
+      position: relative;
+      border-left: 2px solid #ddd;
+      margin-left: 0.5rem;
+    }
+    ul.timeline li::before {
+      content: "☐";
+      position: absolute;
+      left: 0.35rem;
+      font-family: system-ui, sans-serif;
+    }
+    .footnote {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid #eee;
+    }
+    footer {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 2rem;
+    }
+    @media print {
+      body { background: #fff; max-width: none; padding: 0; }
+      section, header, nav.toc { break-inside: avoid; border: none; box-shadow: none; }
+      .chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { size: A4; margin: 18mm; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>LLM Prompt Injection Threat Detection Using Deep Learning</h1>
+  <p class="meta"><strong>Authors:</strong> Md. Nazmus Sakib (<a href="https://engrskib.com">engrskib.com</a>), Kazi Omar Faruq</p>
+  <p class="meta"><strong>Institution:</strong> Dhaka International University (DIU) — 7th Capstone Design</p>
+  <p class="meta"><strong>Report date:</strong> 2 November 2026</p>
+  <p class="meta"><strong>Dataset snapshot ID:</strong> <code>tm-4e7fede7adba</code> ·
+    <a href="https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix">neuralchemy/prompt-injection-Threat-Matrix</a></p>
+  <p class="meta"><strong>Purpose:</strong> Supervisor progress update — completed work, literature alignment, and next steps toward a professional-grade model evaluation.</p>
+</header>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Contents</strong>
+  <ul>
+    <li><a href="#summary">Executive summary</a></li>
+    <li><a href="#dashboard">Progress dashboard</a></li>
+    <li><a href="#literature">Literature map (<code>papers/</code>)</a></li>
+    <li><a href="#completed">Completed work (data pipeline)</a></li>
+    <li><a href="#models">Professional-grade model work</a></li>
+    <li><a href="#gaps">Risks and gaps</a></li>
+    <li><a href="#timeline">Next 4–6 weeks</a></li>
+    <li><a href="#refs">References</a></li>
+  </ul>
+</nav>
+
+<section id="summary">
+  <h2>1. Executive summary</h2>
+  <p>
+    The thesis targets <strong>multi-class prompt injection detection</strong> (seven intent classes, severity metadata, technique-aware evaluation) using the Neuralchemy Threat Matrix dataset and comparative deep learning. The <strong>data engineering pipeline (Phases 1–3) is implemented and tested</strong>: ingestion with versioned snapshots, obfuscation-preserving cleaning, deduplication, validation, enrichment, technique subsets, adversarial paraphrase augmentation, leakage auditing, reproducibility documentation, and Kaggle packaging. This layer is suitable for <strong>IEEE-style reproducibility reporting</strong> with transparent limitations.
+  </p>
+  <p>
+    <strong>Update 2026-11-07.</strong> The leakage problem has been <strong>remediated</strong>: Phase 3.5 performs a group-aware re-split of the local snapshot (duplicate / template / near-duplicate families never cross splits), producing the frozen <code>v1_leakfree</code> splits with <strong>22,093 / 2,780 / 2,802</strong> rows and <strong>0</strong> cross-split overlaps (raw, exact, near, family). The <strong>16-model study scaffolding is implemented and unit-tested</strong> (42 tests): shared classifier interface, registry with verified checkpoints (SecureBERT identifier corrected; Llama-3.1-8B blocked as gated), a resumable trainer and sweep, full metric suite, per-example prediction exports, 17 figure types and a thin Kaggle notebook. <strong>Only CPU smoke runs (TextCNN, DistilBERT on 300-row subsets) have been executed; no production training or thesis-level results exist yet.</strong> The next step is GPU training on Kaggle.
+  </p>
+</section>
+
+<section id="dashboard">
+  <h2>2. Progress dashboard</h2>
+  <div class="dashboard">
+    <span class="chip complete">Data Phase 1 — Prepare</span>
+    <span class="chip complete">Data Phase 2 — Enrich</span>
+    <span class="chip complete">Data Phase 3 — Finalize</span>
+    <span class="chip complete">Docs &amp; unit tests (42)</span>
+    <span class="chip complete">Phase 3.5 — Leakage-free re-split (executed)</span>
+    <span class="chip complete">16-model registry + trainer + eval code</span>
+    <span class="chip complete">CPU smoke runs (TextCNN, DistilBERT)</span>
+    <span class="chip progress">Kaggle GPU sweep (16 models × 3 seeds)</span>
+    <span class="chip planned">Subset evaluation &amp; ablations (needs trained runs)</span>
+    <span class="chip planned">Thesis / IEEE manuscript</span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Workstream</th><th>Status</th><th>Evidence</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Ingestion, cleaning, dedup, Parquet export</td>
+        <td>Complete</td>
+        <td><code>src/data/prepare.py</code>, <code>dvc repro prepare</code></td>
+      </tr>
+      <tr>
+        <td>Obfuscation, balancing, augmentation, MLflow</td>
+        <td>Complete</td>
+        <td><code>src/data/enrich.py</code>, <code>train_augmented.parquet</code></td>
+      </tr>
+      <tr>
+        <td>Technique subsets, adversarial train, leakage audit, Kaggle</td>
+        <td>Complete (audit failed — documented)</td>
+        <td><code>src/data/finalize.py</code>, <code>reports/leakage_report.json</code></td>
+      </tr>
+      <tr>
+        <td>Leak-free splits (Phase 3.5, group-aware re-split)</td>
+        <td>Complete — audit passed (0/0/0/0 overlaps)</td>
+        <td><code>src/data/phase35.py</code>, <code>data/processed/splits/v1_leakfree/manifest.json</code></td>
+      </tr>
+      <tr>
+        <td>16-model registry, shared interface, trainer, sweep, metrics, figures</td>
+        <td>Implemented + unit-tested (42 tests)</td>
+        <td><code>src/models/</code>, <code>src/training/</code>, <code>src/eval/</code>, <code>docs/MODEL_REGISTRY.md</code></td>
+      </tr>
+      <tr>
+        <td>CPU smoke runs</td>
+        <td>Executed (TextCNN, DistilBERT; 300 train rows; pipeline check only)</td>
+        <td><code>outputs/smoke/</code>, <code>outputs/smoke/figures/</code></td>
+      </tr>
+      <tr>
+        <td>Production training (16 models × 3 seeds) &amp; comparison</td>
+        <td><strong>Not executed</strong> — requires GPU (Kaggle); Llama-3.1-8B blocked (gated)</td>
+        <td><code>notebooks/kaggle_train.ipynb</code>, <code>src/training/sweep.py</code></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="literature">
+  <h2>3. Literature map (<code>papers/</code>)</h2>
+  <p>Local PDFs ground the threat model, evaluation slices, and thesis narrative. Mapping: what the paper contributes, what the repo already implements, and the planned experiment.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>File</th>
+        <th>Title (short)</th>
+        <th>Thesis relevance</th>
+        <th>Implemented</th>
+        <th>Planned experiment / metric</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>1.pdf</code></td>
+        <td>Effectiveness of existing detection mechanisms against prompt injection</td>
+        <td>Survey of syntactic/semantic/ensemble detectors; baseline expectations</td>
+        <td>Multi-layer preprocessing; 7-class schema; distribution reports</td>
+        <td>Compare our models vs survey baselines — Accuracy, F1, ROC-AUC (<code>1.pdf</code>, <code>15.pdf</code>)</td>
+      </tr>
+      <tr>
+        <td><code>2.pdf</code></td>
+        <td>Hybrid neural semantic framework for prompt injection detection</td>
+        <td>Hybrid semantic + neural detection narrative</td>
+        <td>Semantic path via transformer encoders (planned); no dual-channel export yet</td>
+        <td>Encoder fine-tune; optional TF-IDF + embedding ablation (<code>1.pdf</code>, <code>19.pdf</code>)</td>
+      </tr>
+      <tr>
+        <td><code>4.pdf</code></td>
+        <td>Systematic review (IEEE Access, 2026)</td>
+        <td>Real-world compromise patterns; obfuscation</td>
+        <td>Obfuscation-aware cleaning; <code>technique_encoding_*</code> subsets</td>
+        <td>Recall on obfuscation class / encoding subset</td>
+      </tr>
+      <tr>
+        <td><code>5.pdf</code></td>
+        <td>Indirect prompt injection in real LLM-integrated apps</td>
+        <td>Indirect attack surface</td>
+        <td>Intent class 6 (<code>indirect_injection</code>) in dataset</td>
+        <td>Per-class recall on intent 6; tool-abuse cross-analysis</td>
+      </tr>
+      <tr>
+        <td><code>6.pdf</code></td>
+        <td>AgentSentry — indirect injection in LLM agents</td>
+        <td>Agent context / temporal injection</td>
+        <td>Indirect class + technique subsets; no multi-turn data yet</td>
+        <td>F1 class 3 &amp; 6; future multi-turn extension</td>
+      </tr>
+      <tr>
+        <td><code>7.pdf</code></td>
+        <td>Malicious traffic classification with MLP</td>
+        <td>Classical DL baseline analogy</td>
+        <td>TextCNN module; MLP-style baselines via sklearn (planned)</td>
+        <td>TextCNN / ELECTRA vs transformer encoders</td>
+      </tr>
+      <tr>
+        <td><code>8.pdf</code></td>
+        <td>MCP security &amp; prompt injection in tool-integrated agents</td>
+        <td>Tool/MCP attack surface</td>
+        <td><code>technique_tool_abuse_*</code> subsets</td>
+        <td>F1 on tool abuse (intent 5) subset</td>
+      </tr>
+      <tr>
+        <td><code>9.pdf</code></td>
+        <td>ARGUS — defending LLM agents (context-aware injection)</td>
+        <td>Agent-oriented defenses</td>
+        <td>Technique slices + severity buckets for tiered evaluation</td>
+        <td>Macro-F1 on agent-relevant technique subsets</td>
+      </tr>
+      <tr>
+        <td><code>10.pdf</code></td>
+        <td>Network intrusion analysis with explainable AI</td>
+        <td>Monitoring / explainability for security ops</td>
+        <td>Severity buckets exported; explainability not implemented</td>
+        <td>Confusion matrices + optional attention visualization</td>
+      </tr>
+      <tr>
+        <td><code>11.pdf</code></td>
+        <td>ARGUS (duplicate venue copy)</td>
+        <td>Same as <code>9.pdf</code></td>
+        <td>Same as <code>9.pdf</code></td>
+        <td>Same as <code>9.pdf</code></td>
+      </tr>
+      <tr>
+        <td><code>12.pdf</code></td>
+        <td>CLAWGUARD — runtime security for tool-augmented agents</td>
+        <td>Severity + tool abuse for deployment tiers</td>
+        <td>Severity metadata, tool_abuse subsets</td>
+        <td>Severity MAE; F1 on tool abuse subset</td>
+      </tr>
+      <tr>
+        <td><code>13.pdf</code></td>
+        <td>Multi-model hybrid defense (network traffic)</td>
+        <td>Hybrid / ensemble defense story</td>
+        <td>Multiple model registry defined; training pending</td>
+        <td>Best model per technique slice; ensemble (future)</td>
+      </tr>
+      <tr>
+        <td><code>14.pdf</code></td>
+        <td>Landscape of prompt injection threats — taxonomy</td>
+        <td>Aligns with 7-class Threat Matrix intent labels</td>
+        <td>Full multiclass pipeline + validation</td>
+        <td>Macro-F1 on full test set</td>
+      </tr>
+      <tr>
+        <td><code>15.pdf</code></td>
+        <td>Prompt injection against LLM-integrated applications</td>
+        <td>Foundational attack taxonomy</td>
+        <td>Binary + multiclass configs supported in ingest</td>
+        <td>Binary detection ROC-AUC, F1</td>
+      </tr>
+      <tr>
+        <td><code>16.pdf</code></td>
+        <td>Federated learning poisoning detection (Grad-CAM)</td>
+        <td>Distributed / poisoning angle</td>
+        <td>Not implemented</td>
+        <td>Future: federated split simulation</td>
+      </tr>
+      <tr>
+        <td><code>17.pdf</code></td>
+        <td>ChatInject — chat-template prompt injection in agents</td>
+        <td>Template-based injection variants</td>
+        <td>Rule-based adversarial paraphrase on train</td>
+        <td>Robustness: F1 drop clean vs <code>train_adversarial</code></td>
+      </tr>
+      <tr>
+        <td><code>18.pdf</code></td>
+        <td>MetaSecAlign — secure foundation LLM against injection</td>
+        <td>Alignment / paraphrase robustness</td>
+        <td>Adversarial paraphrase augmentation (47,007 train rows)</td>
+        <td>Ablation with/without adversarial training</td>
+      </tr>
+      <tr>
+        <td><code>19.pdf</code></td>
+        <td>Systematic review — LLM defenses (NIST taxonomy)</td>
+        <td>Reproducibility, hard cases, comprehensive reporting</td>
+        <td><code>ambiguity_*</code> subsets; <code>docs/REPRODUCIBILITY.md</code></td>
+        <td>Macro-F1 on ambiguity test subset</td>
+      </tr>
+      <tr>
+        <td><code>20.pdf</code></td>
+        <td>Retrieval barrier — indirect injection in the wild</td>
+        <td>RAG / retrieval-mediated indirect injection</td>
+        <td>Indirect intent class; indirect evaluation planned</td>
+        <td>Per-class recall intent 6</td>
+      </tr>
+      <tr>
+        <td><code>21.pdf</code></td>
+        <td>TaintP2X — taint-style prompt-to-anything injection</td>
+        <td>Taint / data-flow style indirect attacks</td>
+        <td>Same indirect class support in data</td>
+        <td>Indirect subset evaluation with <code>20.pdf</code></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="footnote">
+    <strong>Note:</strong> <code>papers/3.pdf</code> is <strong>not present</strong> in the repository (files numbered 1–21 except 3). Role-hijack evaluation uses intent class 3 and <code>technique_role_play_*</code> subsets, aligned with <code>14.pdf</code> taxonomy rather than a missing third PDF.
+  </p>
+</section>
+
+<section id="completed">
+  <h2>4. Completed work — data pipeline</h2>
+
+  <h3>Phase 1 — Prepare (complete)</h3>
+  <ul class="compact">
+    <li>Hugging Face ingest with snapshot <code>tm-4e7fede7adba</code>; Unicode NFKC cleaning; exact (SHA-256) and near (MinHash LSH @ 0.85) deduplication <strong>within each split</strong>.</li>
+    <li>Parquet exports: train <strong>22,093</strong>, validation <strong>2,973</strong>, test <strong>2,971</strong> (from 25,856 / 3,232 / 3,232 after dedup).</li>
+    <li>Validation reports, class distribution JSON/Markdown, DVC stage <code>prepare</code>.</li>
+    <li>Tests: <code>tests/test_data_pipeline.py</code> (5 passed).</li>
+  </ul>
+
+  <h3>Phase 2 — Enrich (complete)</h3>
+  <ul class="compact">
+    <li>Obfuscation-aware normalization (case preserved); severity buckets; ambiguity hard-case subsets (train 308, val 45, test 40).</li>
+    <li>Minority balancing: 22,093 → 23,044 train rows; augmentation (paraphrase, synonym, noise): <strong>train_augmented.parquet</strong> — 26,272 rows.</li>
+    <li>MLflow experiment <code>data-engineering</code> for dataset versioning.</li>
+    <li>Tests: <code>tests/test_phase2_pipeline.py</code> (8 passed).</li>
+  </ul>
+
+  <h3>Phase 3 — Finalize (complete)</h3>
+  <ul class="compact">
+    <li>Technique subsets: encoding (train 3,097), role_play (1,885), tool_abuse (2,425).</li>
+    <li>Adversarial paraphrase: <strong>train_adversarial.parquet</strong> — 47,007 rows (recommended training file in config).</li>
+    <li>Leakage audit: 127 exact + 125 near cross-split overlaps — <strong>audit not passed</strong> (reported in <code>leakage_report.json</code>).</li>
+    <li><code>docs/REPRODUCIBILITY.md</code>, SHA-256 manifest, <code>kaggle_package.zip</code>.</li>
+    <li>Tests: <code>tests/test_phase3_pipeline.py</code> (6 passed).</li>
+  </ul>
+
+  <h3>Infrastructure</h3>
+  <ul class="compact">
+    <li>Modular <code>src/data/</code>, Docker/compose, <code>configs/data.yaml</code>, DVC pipeline, <code>docs/DATA_CARD.md</code>, MIT license (code) / CC BY-NC 4.0 (dataset).</li>
+  </ul>
+</section>
+
+<section id="models">
+  <h2>5. Professional-grade model work — target vs current</h2>
+  <table>
+    <thead>
+      <tr><th>Capability</th><th>Target (thesis / README)</th><th>Current repository state</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Model architectures</td>
+        <td>16 backbones: 12 original (DistilBERT, BERT, RoBERTa, DeBERTa-v3, SecureBERT, ALBERT, ELECTRA-small, TextCNN, BiLSTM+Attention, CNN-BiLSTM, DistilRoBERTa, XLNet) + 4 experimental (ModernBERT-large, Mistral-7B, Qwen3-8B, Llama-3.1-8B with QLoRA)</td>
+        <td><strong>16 implemented</strong> behind one interface (<code>src/models/</code>); 2 smoke-tested; Llama-3.1-8B <em>blocked</em> (gated checkpoint). SecureBERT identifier corrected to <code>ehsanaghaei/SecureBERT</code>.</td>
+      </tr>
+      <tr>
+        <td>Training loop</td>
+        <td>Seeded fine-tuning with early stopping, resume, per-epoch history, truncation accounting</td>
+        <td>Implemented (<code>src/training/trainer.py</code>, <code>train_cli.py</code>, <code>sweep.py</code>); verified by CPU smoke runs; production runs <strong>not executed</strong></td>
+      </tr>
+      <tr>
+        <td>Evaluation</td>
+        <td>7-class + binary metrics, per-class TP/TN/FP/FN, calibration, subsets (technique / source / ambiguity / synthetic), 17 figure types</td>
+        <td>Implemented (<code>src/eval/</code>); figures generated from smoke outputs only (watermarked, not for publication). Severity regression dropped: snapshot has severity ∈ {1,2,3} only.</td>
+      </tr>
+      <tr>
+        <td>Baselines</td>
+        <td>Compare to <code>neuralchemy/distilbert-base-threat-matrix</code> and survey baselines (<code>1.pdf</code>)</td>
+        <td>Not run</td>
+      </tr>
+      <tr>
+        <td>Significance</td>
+        <td>Seed mean ± std and group-aware (family) bootstrap CIs, reported separately</td>
+        <td>Implemented (<code>src/eval/tables.py</code>); no production data yet</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Recommended order of work</h3>
+  <ol class="compact">
+    <li><strong>Phase 3.5 (done):</strong> group-aware re-split → <code>data/processed/splits/v1_leakfree/</code> (frozen manifest, audit passed).</li>
+    <li><strong>Kaggle debug run:</strong> <code>configs/kaggle_debug.yaml</code> (TextCNN + DistilBERT, 2,000 rows) to validate the GPU path end-to-end.</li>
+    <li><strong>Encoders:</strong> sweep the 12 encoder/custom models × 3 seeds on Kaggle GPU; collect <code>outputs/runs</code>.</li>
+    <li><strong>Experimental LLMs:</strong> Mistral-7B / Qwen3-8B QLoRA on a 16 GB GPU session; Llama-3.1-8B only after gated access is granted.</li>
+    <li><strong>Ablation:</strong> clean vs balanced vs augmented vs adversarial train variants on the same frozen test split.</li>
+    <li><strong>Reporting:</strong> <code>src.eval.tables</code> + <code>src.eval.plots</code> on real runs; update registry statuses and thesis chapters.</li>
+  </ol>
+</section>
+
+<section id="gaps">
+  <h2>6. Risks and gaps (IEEE-oriented)</h2>
+  <h3>Critical — before submission claims</h3>
+  <table>
+    <thead><tr><th>Gap</th><th>Risk</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Cross-split leakage (remediated by Phase 3.5)</td>
+        <td>Residual semantic leakage below the Jaccard 0.85 threshold cannot be excluded</td>
+        <td>Done: group-aware re-split, 0 heuristic overlaps; state the heuristic limitation in the thesis</td>
+      </tr>
+      <tr>
+        <td>No production training executed yet</td>
+        <td>No results to report; timeline risk</td>
+        <td>Run the Kaggle sweep (debug profile first); do not quote smoke-run numbers</td>
+      </tr>
+      <tr>
+        <td>Dataset provenance / licence not re-verifiable upstream</td>
+        <td>Redistribution risk</td>
+        <td>Keep Kaggle dataset private; cite local snapshot metadata; do not redistribute without permission</td>
+      </tr>
+      <tr>
+        <td>Large adversarial train set (47K rows)</td>
+        <td>Training cost, overfitting</td>
+        <td>Cap variants per class; ablation study</td>
+      </tr>
+      <tr>
+        <td>Rule-based paraphrase only</td>
+        <td>Limited linguistic diversity</td>
+        <td>Phase 4: neural backtranslation (e.g. MarianMT)</td>
+      </tr>
+      <tr>
+        <td>No human label audit</td>
+        <td>Undetected label noise</td>
+        <td>Sample ~100 rows per class for manual review</td>
+      </tr>
+      <tr>
+        <td>No significance protocol</td>
+        <td>Weak comparative claims</td>
+        <td>Define McNemar / bootstrap CI before writing results</td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Important — strengthens contribution</h3>
+  <ul class="compact">
+    <li>Dual-channel features (semantic + heuristic) per <code>1.pdf</code>, <code>19.pdf</code> — optional TF-IDF + embedding export.</li>
+    <li>Severity regression head / multi-task learning per <code>12.pdf</code>.</li>
+    <li>Multi-turn agent context per <code>6.pdf</code> — future dataset extension.</li>
+    <li>Docker one-shot: <code>docker compose run app python -m src.data.prepare --phase all</code>.</li>
+  </ul>
+  <h3>Phase 3.5 — leakage remediation (implemented and executed, 2026-11-07)</h3>
+  <pre style="font-size:0.82rem;background:#f5f5f5;padding:0.75rem;white-space:pre-wrap;">Input:  data/raw/{train,validation,test}.jsonl (32,320 rows; raw files untouched)
+Step 1: Clean + validate (0 rows dropped)
+Step 2: Families = exact fingerprint ∪ "(example N)" template stem ∪ MinHash Jaccard ≥ 0.85
+        → 23,597 families (22,390 singletons, largest 664)
+Step 3: Stratified greedy group split 80/10/10, upstream split as tie-break → 3,508 rows moved
+Step 4: Within-split exact + near dedup → 4,645 rows dropped (logged)
+Step 5: Full audit raw/exact/near/family across all pairs → 0/0/0/0 → passed
+Step 6: Regenerate train_balanced / augmented / adversarial from NEW train only → each audited: 0 overlaps
+Output: data/processed/splits/v1_leakfree/  (22,093 / 2,780 / 2,802 rows; manifest.json frozen with SHA-256)
+Command: python -m src.data.phase35 --config configs/data.yaml   (~90 s CPU)</pre>
+</section>
+
+<section id="timeline">
+  <h2>7. Next 4–6 weeks (action items)</h2>
+  <h3>Immediate — before model training</h3>
+  <ul class="timeline">
+    <li><s>Implement cross-split leakage remediation (Phase 3.5)</s> — done, executed</li>
+    <li><s>Extend <code>train_cli.py</code> to real fine-tuning</s> — done (trainer, resume, early stopping, sweep)</li>
+    <li>Upload <code>kaggle_package_v1_leakfree.zip</code> as a <em>private</em> Kaggle dataset (manual; licence caveat)</li>
+    <li>Run the Kaggle debug profile, then the full sweep (encoders first)</li>
+    <li>Document final v1_leakfree counts (22,093 / 2,780 / 2,802) in the Methodology chapter</li>
+  </ul>
+  <h3>Model training phase</h3>
+  <ul class="timeline">
+    <li>Train the 16 registered backbones × 3 seeds on Kaggle GPU (Llama-3.1-8B pending gated access)</li>
+    <li>Ablation on train variants (clean / balanced / augmented / adversarial) against the frozen test split</li>
+    <li>Evaluate on full test plus technique / ambiguity / source / synthetic subsets</li>
+    <li>Report accuracy, macro-F1, MCC, OvR AUROC/AP, binary metrics with validation-selected threshold, calibration, confusion matrices, efficiency</li>
+  </ul>
+  <h3>Writing phase</h3>
+  <ul class="timeline">
+    <li>Include reproducibility appendix (<code>docs/REPRODUCIBILITY.md</code>)</li>
+    <li>Cite Threat Matrix dataset and our processing pipeline</li>
+    <li>Discuss leakage audit transparently in Limitations</li>
+    <li>Map best models per technique to hybrid defense narrative (<code>13.pdf</code>)</li>
+  </ul>
+</section>
+
+<section id="refs">
+  <h2>8. References</h2>
+  <ul class="compact">
+    <li>Qassim &amp; Mazumder — <em>Study the Effectiveness of Existing Detection Mechanisms Against Prompt Injection in LLMs</em> — <code>papers/1.pdf</code></li>
+    <li>Neuralchemy — <em>Prompt Injection Threat Matrix</em> — <a href="https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix">Hugging Face dataset</a></li>
+    <li>Full local collection — <code>papers/</code> (20 PDFs: 1, 2, 4–21; <code>3.pdf</code> missing)</li>
+    <li>Repository artifacts — <code>docs/DATA_CARD.md</code>, <code>docs/REPRODUCIBILITY.md</code>, <code>README.md</code> (model registry)</li>
+  </ul>
+</section>
+
+<footer>
+  Generated for DIU capstone supervision · Open <code>index.html</code> in any browser · Print to PDF via browser if needed.
+</footer>
+
+</body>
+</html>

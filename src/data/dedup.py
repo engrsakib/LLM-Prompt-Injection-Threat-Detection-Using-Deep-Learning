@@ -84,6 +84,11 @@ def near_deduplicate(
 
     for idx, record in enumerate(records):
         text = record.get("text_clean", record.get("text", ""))
+        if not _text_shingles(text):
+            # No word tokens (pure punctuation / escapes): an empty MinHash would match every
+            # other empty MinHash (Jaccard 1.0). Keep the row without near-dup comparison.
+            kept.append(record)
+            continue
         mh = _minhash(text, num_perm=num_perm)
         duplicates = lsh.query(mh)
 

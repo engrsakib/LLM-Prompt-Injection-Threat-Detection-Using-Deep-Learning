@@ -17,8 +17,15 @@ INTENT_TO_LABEL: dict[str, int] = {v: k for k, v in INTENT_LABELS.items()}
 BINARY_BENIGN = 0
 BINARY_MALICIOUS = 1
 
+# Severity range measured on the local snapshot (data/raw/*.jsonl): values are {1, 2, 3}.
+# Earlier documentation claimed 1-10; that was not supported by the data.
 MIN_SEVERITY = 1
-MAX_SEVERITY = 10
+MAX_SEVERITY = 3
+
+# Ordered label list used by every classifier head (index == intent_label).
+LABEL_ORDER: tuple[str, ...] = tuple(INTENT_LABELS[i] for i in range(len(INTENT_LABELS)))
+NUM_CLASSES = len(LABEL_ORDER)
+ATTACK_LABELS: tuple[int, ...] = tuple(i for i in INTENT_LABELS if i != 0)
 
 REQUIRED_FIELDS = (
     "text",

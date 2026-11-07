@@ -1,16 +1,19 @@
+# Legacy single-model config (kept for backwards compatibility).
+# The 16-model study uses configs/experiment.yaml + configs/models/<model_id>.yaml via
+#   python -m src.training.train_cli --model <model_id> --seed <seed>
 seed: 42
-model: distilbert-base-uncased
+model: distilbert
 num_labels: 7
-batch_size: 16
-epochs: 3
-learning_rate: 2e-5
+batch_size: 32
+epochs: 4
+learning_rate: 5e-5
 data:
   dataset: neuralchemy/prompt-injection-Threat-Matrix
   config: multiclass
   processed_dir: data/processed
-  train_file: train_adversarial.parquet
+  splits_dir: data/processed/splits/v1_leakfree
+  train_file: train.parquet
 output_dir: outputs/
 mlflow:
   tracking_uri: file:./mlruns
   experiment_name: prompt-injection
-

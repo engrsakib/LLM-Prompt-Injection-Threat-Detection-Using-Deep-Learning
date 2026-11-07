@@ -1,0 +1,20 @@
+# Auto-derived from src/models/registry.py defaults; edit training.* to tune.
+model:
+  model_id: roberta
+  display_name: RoBERTa
+  loader: hf_encoder
+  checkpoint: roberta-base
+  revision: null
+  compute_tier: gpu_small
+  status_declared: implemented
+  access_note: ungated
+training:
+  learning_rate: 2.0e-05
+  batch_size: 32
+  grad_accum: 1
+  epochs: 4
+  max_length: 256
+  precision: fp32
+  warmup_ratio: 0.06
+  weight_decay: 0.01
+  scheduler: linear

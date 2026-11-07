@@ -35,6 +35,20 @@ phase3:
     enabled: true
     experiment_name: data-engineering
 
+# Phase 3.5: leakage-aware group re-split of the LOCAL raw snapshot (offline).
+# Output: data/processed/splits/<version>/ (frozen manifest is the evaluation gate).
+phase35:
+  enabled: true
+  version: v1_leakfree
+  fractions: {train: 0.8, validation: 0.1, test: 0.1}
+  near_threshold: 0.85          # MinHash/Jaccard for family linking + leakage audit
+  within_split_dedup: near      # exact | near | none (applied inside each split only)
+  template_pattern: '\s*\(example\s+\d+\)\s*$'
+  tolerance: 0.02               # stratification tolerance before upstream split tie-break
+  regenerate_train_variants: true
+  build_kaggle_package: true
+  allow_leakage_failure: false
+
 output:
   processed_dir: data/processed
   reports_dir: data/processed/reports

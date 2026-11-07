@@ -9,3 +9,7 @@ balancing_strategy: oversample_median
 augment_enabled: true
 phase3_enabled: true
 adversarial_paraphrase_enabled: true
+# Phase 3.5 (group-aware leakage-free re-split; see configs/data.yaml -> phase35)
+phase35_version: v1_leakfree
+phase35_near_threshold: 0.85
+phase35_within_split_dedup: near

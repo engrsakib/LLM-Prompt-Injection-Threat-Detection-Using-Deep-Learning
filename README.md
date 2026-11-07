@@ -2,12 +2,11 @@
 
 # LLM Prompt Injection Threat Detection Using Deep Learning
 
-**Comparative evaluation of deep learning classifiers for detecting and categorizing prompt injection and jailbreak attacks against LLM-integrated applications.**
+**Comparative evaluation of 16 deep-learning classifiers for detecting and categorizing prompt injection and jailbreak attacks against LLM-integrated applications.**
 
 <br/>
 
-
-**Author:** [Md. Nazmus Sakib](https://engrskib.com) � **Co-Author:** Kazi Omar Faruq
+**Author:** [Md. Nazmus Sakib](https://engrskib.com) · **Co-Author:** Kazi Omar Faruq
 
 <br/>
 
@@ -23,7 +22,7 @@
 [![Thesis](https://img.shields.io/badge/Project-Capstone%20Thesis-blue?style=flat-square)]()
 [![Institution](https://img.shields.io/badge/Institution-DIU-green?style=flat-square)]()
 [![Domain](https://img.shields.io/badge/Domain-LLM%20Security-red?style=flat-square)]()
-[![Status](https://img.shields.io/badge/Status-In%20Development-orange?style=flat-square)]()
+[![Status](https://img.shields.io/badge/Status-Pipeline%20implemented%20%7C%20training%20pending-orange?style=flat-square)]()
 
 </div>
 
@@ -32,14 +31,21 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Status at a glance](#status-at-a-glance)
 - [Technology Stack](#technology-stack)
 - [Dataset](#dataset)
-- [Model Registry](#model-registry)
-- [Reference Papers](#reference-papers)
-- [Experiment Design](#experiment-design)
-- [Data Engineering (Phase 1)](#data-engineering-phase-1)
+- [Data Engineering (Phases 1-3)](#data-engineering-phases-1-3)
+- [Phase 3.5: Leakage-aware re-split](#phase-35-leakage-aware-re-split)
+- [Model Registry (16 backbones)](#model-registry-16-backbones)
+- [Training](#training)
+- [Evaluation, tables and figures](#evaluation-tables-and-figures)
+- [Kaggle workflow](#kaggle-workflow)
+- [Artifact map](#artifact-map)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
+- [Troubleshooting](#troubleshooting)
+- [Limitations and honesty notes](#limitations-and-honesty-notes)
+- [Reference Papers](#reference-papers)
 - [Citation](#citation)
 - [License](#license)
 
@@ -47,98 +53,66 @@
 
 ## Overview
 
-This repository supports a **capstone thesis** on LLM security, focused on **prompt injection detection**. The objective is to train, compare, and benchmark multiple deep learning architectures on a professional-grade threat intelligence dataset � extending beyond binary classification toward multi-class intent recognition, severity scoring, and technique-aware defenses.
+This repository supports a **capstone thesis** on LLM security, focused on **prompt injection detection**. The objective is to train, compare and benchmark multiple deep learning architectures on the Threat Matrix dataset, extending beyond binary classification toward 7-class intent recognition and technique-aware analysis.
 
-The research is grounded in recent work on prompt injection taxonomies, LLM agent security, and adversarial NLP, including **ARGUS**, **AgentSentry**, **CLAWGUARD**, **MetaSecAlign**, and systematic reviews of LLM defense mechanisms. Full PDFs are available in [`papers/`](papers/).
+The research is grounded in recent work on prompt injection taxonomies, LLM agent security and adversarial NLP, including **ARGUS**, **AgentSentry**, **CLAWGUARD**, **MetaSecAlign** and systematic reviews of LLM defence mechanisms. Full PDFs are available in [`papers/`](papers/).
+
+---
+
+## Status at a glance
+
+| Area | State | Evidence |
+|------|-------|----------|
+| Data Phases 1-3 (clean, dedup, enrich, augment, audit) | implemented, executed | `data/processed/` + reports |
+| **Phase 3.5** group-aware leakage-free re-split | implemented, **executed** (`v1_leakfree`, audit passed) | `data/processed/splits/v1_leakfree/manifest.json` |
+| 16-model registry + shared classifier interface | implemented | `src/models/`, `docs/MODEL_REGISTRY.md` |
+| Trainer (resume, early stop, history), per-model configs | implemented | `src/training/` , `configs/models/*.yaml` |
+| Metrics, per-example predictions, tables, 17 figure types | implemented | `src/eval/` |
+| Resumable Kaggle sweep + thin notebook | implemented, **not yet executed on Kaggle** | `src/training/sweep.py`, `notebooks/kaggle_train.ipynb` |
+| CPU smoke runs (TextCNN, DistilBERT, 300 train rows) | **executed locally** | `outputs/smoke/` (not publication results) |
+| Full training of the 16 models (3 seeds) | **not executed** (requires GPU; see Kaggle workflow) | - |
+| Llama-3.1-8B | blocked (gated checkpoint; needs approved `HF_TOKEN`) | registry |
+
+Unit tests: `pytest` -> 42 passed (tiny synthetic fixtures, no network).
 
 ---
 
 ## Technology Stack
 
-### Core Framework
+| Technology | Version used locally | Role |
+|------------|----------------------|------|
+| **Python** | 3.13.7 (CI: 3.11) | Primary language |
+| **PyTorch** | 2.13 (CPU build locally) | Deep learning backend |
+| **Transformers** | 5.22 (>= 4.51 required for Qwen3) | Pre-trained model loading & fine-tuning |
+| **PEFT** | 0.21 | LoRA / QLoRA for 7B-8B decoders |
+| **Datasets / Hub** | 5.1 / 2.4 | Dataset snapshot + checkpoint metadata |
+| **scikit-learn** | 1.5+ | Metrics |
+| **pandas / pyarrow** | 2.2+ | Data processing, Parquet |
+| **datasketch** | 1.6+ | MinHash LSH near-duplicate detection |
+| **Matplotlib** | 3.9+ | Figures (Okabe-Ito colour-blind-safe palette) |
+| **DVC / MLflow** | 3.x / 2.x | Pipeline + experiment tracking |
 
-| Technology | Version | Role | Badge |
-|------------|---------|------|-------|
-| **Python** | `3.11+` | Primary language | ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat-square&logo=python&logoColor=white) |
-| **PyTorch** | `2.5+` | Deep learning backend | ![PyTorch](https://img.shields.io/badge/-PyTorch-EE4C2C?style=flat-square&logo=pytorch&logoColor=white) |
-| **Transformers** | `4.46+` | Pre-trained model loading & fine-tuning | ![Transformers](https://img.shields.io/badge/-Transformers-FFD21E?style=flat-square&logo=huggingface&logoColor=black) |
-| **Datasets** | `3.1+` | Hugging Face dataset pipeline | ![Datasets](https://img.shields.io/badge/-Datasets-FFD21E?style=flat-square&logo=huggingface&logoColor=black) |
-| **Accelerate** | `1.1+` | Distributed / mixed-precision training | ![Accelerate](https://img.shields.io/badge/-Accelerate-FFD21E?style=flat-square&logo=huggingface&logoColor=black) |
-| **Tokenizers** | `0.20+` | Fast text tokenization | ![Tokenizers](https://img.shields.io/badge/-Tokenizers-FFD21E?style=flat-square&logo=huggingface&logoColor=black) |
-
-### ML & Evaluation
-
-| Technology | Version | Role | Badge |
-|------------|---------|------|-------|
-| **scikit-learn** | `1.5+` | Metrics, splits, baselines | ![scikit-learn](https://img.shields.io/badge/-scikit--learn-F7931E?style=flat-square&logo=scikitlearn&logoColor=white) |
-| **pandas** | `2.2+` | Data analysis & reporting | ![pandas](https://img.shields.io/badge/-pandas-150458?style=flat-square&logo=pandas&logoColor=white) |
-| **NumPy** | `2.0+` | Numerical computation | ![NumPy](https://img.shields.io/badge/-NumPy-013243?style=flat-square&logo=numpy&logoColor=white) |
-| **Matplotlib** | `3.9+` | Result visualization | ![Matplotlib](https://img.shields.io/badge/-Matplotlib-11557C?style=flat-square) |
-| **Seaborn** | `0.13+` | Confusion matrices & plots | ![Seaborn](https://img.shields.io/badge/-Seaborn-444876?style=flat-square) |
-
-### DevOps & Environment
-
-| Technology | Version | Role | Badge |
-|------------|---------|------|-------|
-| **CUDA** | `12.1+` | GPU acceleration (optional) | ![CUDA](https://img.shields.io/badge/-CUDA-76B900?style=flat-square&logo=nvidia&logoColor=white) |
-| **Git** | `2.40+` | Version control | ![Git](https://img.shields.io/badge/-Git-F05032?style=flat-square&logo=git&logoColor=white) |
-| **Jupyter** | `1.1+` | Experiment notebooks | ![Jupyter](https://img.shields.io/badge/-Jupyter-F37626?style=flat-square&logo=jupyter&logoColor=white) |
-
-### Install Dependencies
+Install:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt          # runtime
+pip install -r requirements-dev.txt      # pytest, ruff, mypy
+# Kaggle sessions: pip install -r requirements-kaggle.txt (pinned, no torch re-pin)
 ```
-
-<details>
-<summary><b>requirements.txt</b> (recommended versions)</summary>
-
-```txt
-torch>=2.5.0
-transformers>=4.46.0
-datasets>=3.1.0
-accelerate>=1.1.0
-tokenizers>=0.20.0
-scikit-learn>=1.5.0
-pandas>=2.2.0
-numpy>=2.0.0
-matplotlib>=3.9.0
-seaborn>=0.13.0
-evaluate>=0.4.0
-tqdm>=4.66.0
-```
-
-</details>
 
 ---
 
 ## Dataset
 
-<div align="center">
-
-<a href="https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix">
-  <img src="https://huggingface.co/datasets/huggingface/brand/resolve/main/hf_dataset_with_text.svg" alt="Hugging Face Dataset" width="320"/>
-</a>
-
-<br/><br/>
-
-[![Hugging Face Dataset](https://img.shields.io/badge/??%20Hugging%20Face-prompt--injection--Threat--Matrix-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
-[![Dataset Size](https://img.shields.io/badge/Samples-32%2C320-blue?style=for-the-badge)](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
-[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey?style=for-the-badge)](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix)
-
-</div>
-
 | Property | Value |
 |----------|-------|
-| **Repository** | [`neuralchemy/prompt-injection-Threat-Matrix`](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix) |
-| **Samples** | 32,320 curated prompts |
-| **Splits** | 80% train � 10% validation � 10% test |
-| **Configs** | `binary` � `multiclass` (default) |
-| **Format** | Parquet |
+| **Upstream** | [`neuralchemy/prompt-injection-Threat-Matrix`](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix), config `multiclass` |
+| **Local snapshot** | `data/raw/{train,validation,test}.jsonl` + `snapshot_metadata.json` (id `tm-4e7fede7adba`) - **the pipeline never re-downloads** |
+| **Raw rows (measured)** | 25,856 / 3,232 / 3,232 = 32,320 |
+| **Licence** | CC BY-NC 4.0 **according to the local snapshot metadata**; the upstream page could not be re-verified at build time |
 | **Language** | English |
-| **License** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) |
 
-### Intent Classes (Multiclass)
+### Intent classes (`intent_label`; logits column order everywhere)
 
 | Label | Intent | Description |
 |:-----:|--------|-------------|
@@ -150,276 +124,173 @@ tqdm>=4.66.0
 | `5` | `tool_abuse` | Malicious tool/function calls |
 | `6` | `indirect_injection` | Context-based injection |
 
-### Schema Highlights
+### Schema (as measured on the local snapshot)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `text` | string | Input prompt |
-| `label` / `intent_label` | int | Classification target |
-| `severity` | int | Threat severity (1�10) |
-| `technique` | string | Attack technique category |
-| `surface` | string | Targeted attack surface |
-| `ambiguity` | bool | Borderline / hard-to-classify flag |
+| Field | Type | Measured facts |
+|-------|------|----------------|
+| `text` | string | prompt |
+| `label` / `intent_label` | int | identical for every row |
+| `binary_label` | int | equals `intent_label != 0` for every row |
+| `severity` | int | values **{1, 2, 3}** only (not 1-10 as documented upstream) |
+| `technique` | string | attack technique |
+| `surface` | string | constant `user_input` - carries no information |
+| `source` | string | `hackaprompt`, `core`, `synthetic_threat`, `synthetic_benign`, `synthetic_short` |
+| `ambiguity` | bool | borderline flag |
 
-### Quick Load
+Synthetic share (`source` starts with `synthetic`): 37.9% / 37.5% / 38.6% per raw split. Synthetic rows are **kept**; results are additionally reported for synthetic vs non-synthetic subsets (`src/eval/tables.py::subgroup_table`).
 
-```python
-from datasets import load_dataset
-
-binary_ds = load_dataset("neuralchemy/prompt-injection-Threat-Matrix", "binary")
-multi_ds  = load_dataset("neuralchemy/prompt-injection-Threat-Matrix", "multiclass")
-```
-
-**Official baseline (pre-trained):** [`neuralchemy/distilbert-base-threat-matrix`](https://huggingface.co/neuralchemy/distilbert-base-threat-matrix)
+Full data card: [`docs/DATA_CARD.md`](docs/DATA_CARD.md).
 
 ---
 
-## Model Registry
+## Data Engineering (Phases 1-3)
 
-Twelve deep learning models selected for comparative evaluation. Each entry includes architecture type, Hugging Face checkpoint (where applicable), parameter scale, and thesis role.
+```bash
+python -m src.data.prepare --config configs/data.yaml --phase all   # or: dvc repro prepare enrich finalize
+```
 
-| # | Model | Architecture | Hugging Face Checkpoint | Params | Thesis Role |
-|:-:|-------|--------------|-------------------------|:------:|-------------|
-| 1 | **DistilBERT** | Distilled Transformer | [`distilbert-base-uncased`](https://huggingface.co/distilbert-base-uncased) | 66M | Primary baseline; dataset-aligned reference |
-| 2 | **BERT** | Transformer Encoder | [`bert-base-uncased`](https://huggingface.co/bert-base-uncased) | 110M | Canonical text classification baseline |
-| 3 | **RoBERTa** | Transformer Encoder | [`roberta-base`](https://huggingface.co/roberta-base) | 125M | Robust pre-training; adversarial text |
-| 4 | **DeBERTa-v3** | Disentangled Attention | [`microsoft/deberta-v3-base`](https://huggingface.co/microsoft/deberta-v3-base) | 184M | State-of-the-art encoder candidate |
-| 5 | **SecureBERT** | Cybersecurity BERT | [`ehsanaul/securebert-base`](https://huggingface.co/ehsanaul/securebert-base) | 110M | Domain-specific security embeddings |
-| 6 | **ALBERT** | Lightweight Transformer | [`albert-base-v2`](https://huggingface.co/albert-base-v2) | 12M | Parameter-efficient comparison |
-| 7 | **ELECTRA** | Discriminator-pretrained | [`google/electra-small-discriminator`](https://huggingface.co/google/electra-small-discriminator) | 14M | Fast, compute-efficient encoder |
-| 8 | **TextCNN** | Convolutional (Kim) | *Custom implementation* | ~1M | Classical DL baseline |
-| 9 | **BiLSTM + Attention** | Recurrent + Attention | *Custom implementation* | ~2M | Sequential / obfuscation patterns |
-| 10 | **CNN-BiLSTM** | Hybrid CNN-RNN | *Custom implementation* | ~3M | Local + long-range feature fusion |
-| 11 | **DistilRoBERTa** | Distilled Transformer | [`distilroberta-base`](https://huggingface.co/distilroberta-base) | 82M | Accuracy�speed trade-off |
-| 12 | **XLNet** | Permutation LM | [`xlnet-base-cased`](https://huggingface.co/xlnet-base-cased) | 110M | Bidirectional context modeling |
+| Phase | Modules | Outputs (`data/processed/`) |
+|-------|---------|-----------------------------|
+| 1 Ingest / clean / dedup / validate | `ingest.py`, `cleaning.py`, `dedup.py`, `validation.py` | `train|validation|test.parquet`, `metadata.json`, `reports/` |
+| 2 Obfuscation features, balancing, augmentation, subsets | `obfuscation.py`, `analysis.py`, `balancing.py`, `augment.py` | `train_balanced.parquet`, `train_augmented.parquet`, `subsets/ambiguity_*` |
+| 3 Technique subsets, adversarial paraphrase, leakage audit, Kaggle zip | `technique_subsets.py`, `adversarial_paraphrase.py`, `leakage.py`, `kaggle_package.py` | `train_adversarial.parquet`, `kaggle_package.zip`, `reports/leakage_report.json` |
 
-### Model Icons (Architecture Family)
-
-<p align="center">
-
-<img src="https://img.shields.io/badge/??%20DistilBERT-distilbert--base--uncased-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="DistilBERT"/>
-<img src="https://img.shields.io/badge/??%20BERT-bert--base--uncased-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="BERT"/>
-<img src="https://img.shields.io/badge/??%20RoBERTa-roberta--base-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="RoBERTa"/>
-<img src="https://img.shields.io/badge/??%20DeBERTa-deberta--v3--base-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="DeBERTa"/>
-
-<br/>
-
-<img src="https://img.shields.io/badge/??%20SecureBERT-securebert--base-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="SecureBERT"/>
-<img src="https://img.shields.io/badge/??%20ALBERT-albert--base--v2-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="ALBERT"/>
-<img src="https://img.shields.io/badge/??%20ELECTRA-electra--small-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="ELECTRA"/>
-<img src="https://img.shields.io/badge/??%20TextCNN-Custom-444876?style=flat-square" alt="TextCNN"/>
-
-<br/>
-
-<img src="https://img.shields.io/badge/??%20BiLSTM-Custom-444876?style=flat-square" alt="BiLSTM"/>
-<img src="https://img.shields.io/badge/??%20CNN--BiLSTM-Custom-444876?style=flat-square" alt="CNN-BiLSTM"/>
-<img src="https://img.shields.io/badge/??%20DistilRoBERTa-distilroberta--base-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="DistilRoBERTa"/>
-<img src="https://img.shields.io/badge/??%20XLNet-xlnet--base--cased-FFD21E?style=flat-square&logo=huggingface&logoColor=black" alt="XLNet"/>
-
-</p>
-
-> **Legend:** ?? = Hugging Face pre-trained checkpoint � ?? = Custom PyTorch implementation
+**Important:** the Phase 3 audit of these *upstream-split* artifacts reports cross-split overlap (`reports/leakage_report.json`, `passed: false`: 127 exact + 125 near pairs after processing; on the raw files: 14 / 20 / 4 exact duplicates train-val / train-test / val-test and 198 benign `(example N)` template families spanning splits). These historical files are kept for traceability but **must not be used for model evaluation** - use Phase 3.5.
 
 ---
 
-## Reference Papers
+## Phase 3.5: Leakage-aware re-split
 
-Local copies in [`papers/`](papers/) � [Google Drive collection](https://drive.google.com/drive/folders/1K9nPcdnSYI6iGPgNNwDmbew5pM4voqwz)
+```bash
+python -m src.data.phase35 --config configs/data.yaml      # ~90 s on CPU; or: dvc repro resplit
+```
 
-| Paper | Focus Area |
-|-------|------------|
-| `1.pdf` | Effectiveness of existing detection methods |
-| `4.pdf` � `6.pdf` | Real-world LLM compromise, AgentSentry, indirect injection |
-| `7.pdf`, `10.pdf` | Network intrusion & malicious traffic classification |
-| `8.pdf` � `9.pdf`, `11.pdf` | ARGUS � LLM agent defense |
-| `12.pdf` | CLAWGUARD � runtime agent security |
-| `13.pdf` � `15.pdf` | Hybrid defense, threat taxonomy, injection attacks |
-| `16.pdf` | Federated learning poisoning detection |
-| `17.pdf` � `18.pdf` | MetaSecAlign � secure foundation LLM |
-| `19.pdf` | Systematic literature review on LLM defenses |
-| `20.pdf` � `21.pdf` | Retrieval barrier, TaintP2X injection detection |
+Policy (**group-aware re-split**, chosen with the supervisor's approval): all raw rows are pooled, grouped into *families*, and whole families are assigned to one split with a stratified greedy placement (~80/10/10) that uses the upstream split as tie-break.
+
+| Step | Rule |
+|------|------|
+| Family links | exact normalised fingerprint **or** template stem (`(example N)` suffix removed) **or** MinHash-LSH word-3-gram Jaccard >= 0.85 (configurable). Rows without shingles are never linked. A `source` category alone is **never** a family key. |
+| Within-split dedup | exact + near (same threshold) inside each split only |
+| Audit | full (not sampled) raw / normalised / near / family checks across all split pairs; **the run fails unless it passes** |
+| Train variants | `train_balanced`, `train_augmented`, `train_adversarial` regenerated **from the new train split only**; each is audited against the new validation/test (all passed, 0 overlaps) |
+| Manifest | `manifest.json` with `frozen: true`, SHA-256 of every artifact, before/after counts, moved-row matrix, dropped-row log, thresholds, licence caveat |
+
+Measured result (`data/processed/splits/v1_leakfree/manifest.json`, 2026-11-07):
+
+| | train | validation | test |
+|--|------:|-----------:|-----:|
+| rows after group split (before dedup) | 25,853 | 3,232 | 3,235 |
+| exact / near removed within split | 327 / 3,433 | 51 / 401 | 32 / 401 |
+| **final rows** | **22,093** | **2,780** | **2,802** |
+| families | 18,826 | 2,386 | 2,385 |
+| synthetic rows | 7,388 (33.4%) | 909 (32.7%) | 910 (32.5%) |
+
+32,320 rows -> 23,597 families (22,390 singletons, largest 664); 3,508 rows changed split; 4,645 rows dropped as within-split duplicates; cross-split raw/exact/near/family overlaps after re-split: **0 / 0 / 0 / 0**. All 7 classes present in every split. Train variants: balanced 22,984, augmented 26,116, adversarial 46,801 rows.
+
+> Passing these heuristic checks does **not** prove zero statistical leakage (paraphrases below the Jaccard threshold, shared templates with different wording, etc.). Raw-file numbers (14/20/4) and processed-file numbers (127/125) are different measurements and must never be combined.
+
+Every training / evaluation entrypoint loads `manifest.json`, refuses non-frozen or failed-audit splits and re-verifies artifact hashes (`src/data/phase35.py::load_frozen_manifest`).
 
 ---
 
-## Experiment Design
+## Model Registry (16 backbones)
 
-### Task�Model Mapping
+Full table with checkpoints, revisions, licences, parameter counts and evidence: [`docs/MODEL_REGISTRY.md`](docs/MODEL_REGISTRY.md) (regenerate with `python -m src.models.registry`; `--check --online` verifies Hub metadata without downloading weights).
 
-| Experiment | Recommended Models | Primary Metrics |
-|------------|-------------------|-----------------|
-| **Binary detection** | DistilBERT, BERT, SecureBERT, TextCNN, DistilRoBERTa | Accuracy, F1, ROC-AUC |
-| **7-class intent classification** | RoBERTa, DeBERTa, BiLSTM+Attention, CNN-BiLSTM | Macro-F1, Confusion Matrix |
-| **Severity scoring** | DeBERTa, RoBERTa, XLNet | MAE, RMSE |
-| **Low-latency deployment** | DistilBERT, ALBERT, ELECTRA, TextCNN | Latency (ms/sample), F1 |
+| # | `model_id` | Model | Checkpoint | Tier | Status (2026-11-07) |
+|:-:|-----------|-------|------------|------|---------------------|
+| 1 | `distilbert` | DistilBERT | `distilbert-base-uncased` | cpu_ok | **smoke-tested** |
+| 2 | `bert` | BERT | `bert-base-uncased` | gpu_small | implemented |
+| 3 | `roberta` | RoBERTa | `roberta-base` | gpu_small | implemented |
+| 4 | `deberta_v3` | DeBERTa-v3 | `microsoft/deberta-v3-base` | gpu_small | implemented |
+| 5 | `securebert` | SecureBERT | `ehsanaghaei/SecureBERT` @ `3a47918d` (**corrected**: `ehsanaul/securebert-base` returns 401) | gpu_small | implemented |
+| 6 | `albert` | ALBERT | `albert-base-v2` | cpu_ok | implemented |
+| 7 | `electra_small` | ELECTRA-small | `google/electra-small-discriminator` | cpu_ok | implemented |
+| 8 | `textcnn` | TextCNN | custom, train-only vocab | cpu_ok | **smoke-tested** |
+| 9 | `bilstm_attention` | BiLSTM + Attention | custom, train-only vocab | cpu_ok | implemented |
+| 10 | `cnn_bilstm` | CNN-BiLSTM | custom, train-only vocab | cpu_ok | implemented |
+| 11 | `distilroberta` | DistilRoBERTa | `distilroberta-base` | cpu_ok | implemented |
+| 12 | `xlnet` | XLNet | `xlnet-base-cased` | gpu_small | implemented |
+| 13 | `modernbert_large` | ModernBERT-large (experimental) | `answerdotai/ModernBERT-large` @ `45bb4654` | gpu_medium | implemented |
+| 14 | `mistral_7b` | Mistral-7B v0.3 base + QLoRA (experimental) | `mistralai/Mistral-7B-v0.3` @ `caa1feb0` | gpu_large_qlora | implemented |
+| 15 | `qwen3_8b` | Qwen3-8B + QLoRA (experimental; post-trained release, base is `Qwen3-8B-Base`) | `Qwen/Qwen3-8B` @ `b968826d` | gpu_large_qlora | implemented |
+| 16 | `llama31_8b` | Llama-3.1-8B + QLoRA (experimental) | `meta-llama/Llama-3.1-8B` @ `d04e592b` | gpu_large_qlora | **blocked** (gated) |
 
-### Evaluation Protocol
+"implemented" means the code path exists and unit tests cover the interface; it does **not** mean the model has been trained. Decoder models were verified only with a random tiny Llama config (padding invariance + adapter/head save-reload); no 7B/8B weights were loaded locally.
 
-```
-Accuracy � Precision � Recall � F1 (macro & weighted)
-ROC-AUC (binary) � Confusion matrix (multiclass)
-Severity MAE � Inference latency � Model size (MB)
-```
+Shared interface (`src/models/base.py`): every model consumes `input_ids`/`attention_mask`, returns 7 logits in `LABEL_ORDER`, saves/loads from a directory; custom models fit their vocabulary on the training split only; decoders use LoRA (`peft`, `TaskType.SEQ_CLS`) with the `score` head trained and saved, right padding and last-non-pad-token pooling, 4-bit QLoRA when `bitsandbytes` + CUDA exist (fallback recorded in `load_info`).
 
----
-
-## Data Engineering (Phase 1)
-
-Professional-grade preprocessing pipeline for IEEE reproducibility.
-
-### Run locally
-
-```bash
-pip install -r requirements.txt
-python -m src.data.prepare --config configs/data.yaml
-```
-
-### Run with DVC
-
-```bash
-dvc repro prepare
-```
-
-### What it does
-
-| Step | Module | Description |
-|------|--------|-------------|
-| Ingestion | `src/data/ingest.py` | Hugging Face download + snapshot ID |
-| Cleaning | `src/data/cleaning.py` | Unicode NFKC, control chars, zero-width removal |
-| Dedup | `src/data/dedup.py` | Exact (SHA-256) + near (MinHash LSH) |
-| Validation | `src/data/validation.py` | intent, binary_label, severity, technique checks |
-| Reporting | `src/data/reporting.py` | Class distribution JSON + Markdown |
-| Export | `src/data/pipeline.py` | Parquet to `data/processed/` |
-
-### Output artifacts
-
-```
-data/processed/
-??? train.parquet
-??? validation.parquet
-??? test.parquet
-??? metadata.json
-??? reports/
-    ??? class_distribution.json
-    ??? class_distribution.md
-    ??? validation_report.json
-    ??? dedup_report.json
-```
-
-Full documentation: [`docs/DATA_CARD.md`](docs/DATA_CARD.md)
+Excluded by design: GPT-4 Attack Validator, Lakera Guard, MetaSecAlign (external / paid / generative; no data leaves the machine).
 
 ---
 
-## Data Engineering (Phase 2)
+## Training
 
-Paper-quality enrichment for obfuscation, hard-case evaluation, balancing, and experiment tracking.
-
-### Run locally
+One job = one model x one seed. Validation is used **only** for early stopping (macro-F1) and binary-threshold selection; test predictions are produced once from the best validation checkpoint.
 
 ```bash
-python -m src.data.prepare --config configs/data.yaml --phase all
-# or Phase 2 only (requires Phase 1 outputs)
-python -m src.data.enrich --config configs/data.yaml
+# CPU smoke test (300 stratified train rows, 100 val/test rows, 1 epoch, max_length 64) -> outputs/smoke/
+python -m src.training.train_cli --model textcnn    --seed 42 --smoke
+python -m src.training.train_cli --model distilbert --seed 42 --smoke
+
+# Full run (GPU) -> outputs/runs/<model>/seed_<seed>/
+python -m src.training.train_cli --model roberta --seed 42 --config configs/experiment.yaml
+python -m src.training.train_cli --model roberta --seed 42 --resume          # continue after interruption
+python -m src.training.train_cli --model roberta --seed 42 --train-file train_adversarial.parquet   # ablation variant
+
+# Resumable sweep (models x seeds, manifest in outputs/sweep/manifest.json)
+python -m src.training.sweep --config configs/experiment.yaml --models textcnn distilbert --seeds 42 43 44
 ```
 
-### Run with DVC
+Configuration precedence: registry defaults -> `configs/models/<model_id>.yaml` -> `configs/experiment.yaml: training_overrides` -> CLI flags (`--epochs --batch-size --learning-rate --max-length --grad-accum --precision`). Common max-length policy: 256 tokens; truncation rates per split are logged in `run_summary.json`. Default seeds: 42, 43, 44.
 
-```bash
-dvc repro prepare
-dvc repro enrich
-```
-
-### What it adds
-
-| Step | Module | Description |
-|------|--------|-------------|
-| Obfuscation-aware normalization | `src/data/obfuscation.py` | Detect base64/hex/leetspeak; preserve attack signal |
-| Severity buckets | `src/data/analysis.py` | Buckets: 1�2, 3�4, 5�6, 7�10 |
-| Ambiguity subsets | `src/data/analysis.py` | Export `ambiguity=true` hard-case splits |
-| Minority balancing | `src/data/balancing.py` | Train-only oversampling (`oversample_median`) |
-| Train-only augmentation | `src/data/augment.py` | Synonym, token noise, paraphrase variants |
-| MLflow dataset versioning | `src/data/mlflow_tracking.py` | Logs snapshot ID + artifacts per run |
-
-### Phase 2 artifacts
-
-```
-data/processed/
-??? train_balanced.parquet
-??? train_augmented.parquet
-??? subsets/
-?   ??? ambiguity_train.parquet
-?   ??? ambiguity_validation.parquet
-?   ??? ambiguity_test.parquet
-??? reports/
-    ??? severity_buckets.json
-    ??? severity_buckets.md
-    ??? ambiguity_subsets.json
-```
-
-Training experiments automatically log dataset version via `src/training/train_cli.py`.
+Each run writes `config.json`, `history.jsonl` (step/epoch loss, lr, val metrics), `checkpoint/` (best), `last/` (resume state incl. optimizer/scheduler/RNG; deleted after success unless `--keep-last`), `threshold.json`, `metrics_{validation,test}.json`, `predictions_{validation,test}.parquet`, `run_summary.json` (wall time, hardware, parameter counts, truncation rates).
 
 ---
 
-## Data Engineering (Phase 3)
+## Evaluation, tables and figures
 
-IEEE-grade finalization for technique-specific evaluation, adversarial robustness, leakage auditing, and Kaggle packaging.
-
-### Run locally
+`src/eval/evaluate.py` validates probabilities (shape N x 7, finite, rows sum to 1) and computes: accuracy, balanced accuracy, macro/micro/weighted precision/recall/F1, per-class P/R/F1/support, MCC, one-vs-rest AUROC and AP (per class + macro + weighted), raw and row-normalised confusion matrices, per-class TP/TN/FP/FN, calibration (top-label ECE, multiclass Brier, NLL, reliability bins), and binary attack metrics with `p_attack = sum(p[1:7])` and a threshold chosen on validation only (precision, recall, F1, specificity, FPR, FNR, MCC, AUROC, AP, TP/TN/FP/FN). Metrics that cannot be computed (e.g. AUROC for a class absent from the gold labels) are `null` with a reason under `unavailable`.
 
 ```bash
-python -m src.data.prepare --config configs/data.yaml --phase all
-# or Phase 3 only (requires Phase 1 + 2 outputs)
-python -m src.data.finalize --config configs/data.yaml
+python -m src.eval.tables --runs outputs/runs --out outputs/tables            # runs_test.csv, seed_summary_test.csv (mean/std over seeds),
+                                                                              # per_class_test.csv, subgroups_test.csv (source/technique/ambiguity/severity/synthetic),
+                                                                              # bootstrap_ci_test.json (group-aware percentile CI over families)
+python -m src.eval.plots  --runs outputs/runs --out outputs/figures            # 17 figure types, PNG 300 DPI + PDF + SVG, skipped.json for missing prerequisites
 ```
 
-### Run with DVC
+Seed variance (mean/std over seeds) and sampling uncertainty (family-level bootstrap CI of one run) are always reported separately. Figures: confusion counts, normalised confusion, binary TP/TN/FP/FN, per-class OvR counts, dataset distribution (labelled DATASET), loss curves, val macro-F1 curves, cross-model bars (+ separate bootstrap-CI figure), model x class F1 heatmap, OvR ROC + macro/binary ROC, PR curves with prevalence baselines, AUROC/AP comparison, subset performance with n, train-variant ablation, reliability diagram, efficiency vs F1, confidence/error histograms.
 
-```bash
-dvc repro prepare
-dvc repro enrich
-dvc repro finalize
+---
+
+## Kaggle workflow
+
+See [`notebooks/kaggle_run.md`](notebooks/kaggle_run.md) and the thin notebook [`notebooks/kaggle_train.ipynb`](notebooks/kaggle_train.ipynb) (cells only call `src/` modules).
+
+1. Build the split package locally: `bash scripts/package_kaggle.sh` -> `data/processed/splits/v1_leakfree/kaggle_package_v1_leakfree.zip`.
+2. Upload it **manually** as a *private* Kaggle dataset (only if you have verified permission; licence CC BY-NC 4.0 per snapshot metadata). Nothing in the code logs in, publishes or submits.
+3. Add the repo (dataset or `git clone`), optionally an `HF_TOKEN` **Kaggle Secret** for gated checkpoints; tokens are only read from `os.environ`.
+4. `python -m src.kaggle.env` prints accelerator / VRAM / disk and the compute tiers available; the sweep marks unavailable tiers `blocked` instead of crashing.
+5. Start with `configs/kaggle_debug.yaml` (TextCNN + DistilBERT on 2,000 rows), then `configs/experiment.yaml`; `--budget-minutes` stops before the session limit; re-running resumes from `outputs/sweep/manifest.json`.
+6. Download `/kaggle/working/outputs` and copy into local `outputs/` to regenerate docs tables and figures.
+
+---
+
+## Artifact map
+
 ```
-
-### What it adds
-
-| Step | Module | Description |
-|------|--------|-------------|
-| Technique subsets | `src/data/technique_subsets.py` | encoding, role_play, tool_abuse exports |
-| Adversarial paraphrase | `src/data/adversarial_paraphrase.py` | Intent-preserving train augmentation |
-| Leakage audit | `src/data/leakage.py` | Exact + near-duplicate cross-split checks |
-| Reproducibility appendix | `src/data/reproducibility.py` | Commands + SHA-256 artifact hashes |
-| Kaggle package | `src/data/kaggle_package.py` | `kaggle_package.zip` with metadata |
-
-### Phase 3 artifacts
-
+data/raw/                                 # local snapshot (never modified)
+data/processed/                           # Phases 1-3 on upstream splits (historical; audit FAILED - do not evaluate on these)
+data/processed/splits/v1_leakfree/        # Phase 3.5 (frozen; audit PASSED)
+  train|validation|test.parquet, train_balanced|augmented|adversarial.parquet
+  manifest.json, dropped_rows.jsonl, family_assignments.parquet
+  reports/leakage_report*.json, subsets/, kaggle_package/, kaggle_package_v1_leakfree.zip
+outputs/smoke/<model>_seed<seed>/         # CPU smoke runs (not publication results)
+outputs/runs/<model>/seed_<seed>/         # production runs (none yet)
+outputs/sweep/manifest.json               # sweep state
+outputs/tables/, outputs/figures/         # aggregated tables and figures
+docs/registry.json, docs/MODEL_REGISTRY.md
 ```
-data/processed/
-??? train_adversarial.parquet
-??? kaggle_package/
-??? kaggle_package.zip
-??? subsets/
-?   ??? technique_encoding_{split}.parquet
-?   ??? technique_role_play_{split}.parquet
-?   ??? technique_tool_abuse_{split}.parquet
-??? reports/
-    ??? technique_subsets.json
-    ??? leakage_report.json
-    ??? reproducibility_manifest.json
-    ??? kaggle_package_manifest.json
-
-docs/REPRODUCIBILITY.md
-```
-
-### Kaggle usage
-
-1. Upload `data/processed/kaggle_package.zip` to Kaggle Datasets
-2. In a notebook:
-
-```python
-import pandas as pd
-train = pd.read_parquet("/kaggle/input/<your-dataset>/train_adversarial.parquet")
-```
-
-Full reproducibility commands and hashes: [`docs/REPRODUCIBILITY.md`](docs/REPRODUCIBILITY.md)
 
 ---
 
@@ -427,60 +298,90 @@ Full reproducibility commands and hashes: [`docs/REPRODUCIBILITY.md`](docs/REPRO
 
 ```
 model/
-??? papers/                  # Reference literature (PDF)
-??? configs/                 # Experiment & data pipeline configs
-??? docs/                    # DATA_CARD and research docs
-??? src/
-?   ??? data/                # Ingest, clean, dedup, validate, export
-?   ??? models/              # Model definitions (transformers + custom)
-?   ??? training/            # Training loops & checkpoints
-?   ??? eval/                # Metrics, plots, benchmark reports
-??? scripts/                 # Download & utility scripts
-??? data/                    # Raw + processed artifacts (gitignored)
-??? outputs/                 # Checkpoints, logs, result tables
-??? dvc.yaml                 # DVC pipeline definition
-??? requirements.txt
-??? README.md
+├── papers/                  # Reference literature (PDF)
+├── configs/                 # data.yaml, experiment.yaml, kaggle_debug.yaml, models/<model_id>.yaml (16)
+├── docs/                    # DATA_CARD, MODEL_REGISTRY, REPRODUCIBILITY, registry.json
+├── notebooks/               # kaggle_train.ipynb (thin), kaggle_run.md
+├── src/
+│   ├── data/                # Phases 1-3 + families.py, resplit.py, phase35.py, leakage.py
+│   ├── models/              # base.py, vocab.py, textcnn.py, bilstm_attention.py, cnn_bilstm.py,
+│   │                        # hf_encoder.py, decoder_classifier.py, registry.py
+│   ├── training/            # data.py, trainer.py, train_cli.py, sweep.py
+│   ├── eval/                # evaluate.py, predict.py, tables.py, plots.py
+│   └── kaggle/              # env.py
+├── scripts/                 # download_data.py, kaggle_run.sh, package_kaggle.sh
+├── tests/                   # 42 tests (data pipeline, study modules, smoke)
+├── data/, outputs/, mlruns/ # gitignored artifacts
+├── dvc.yaml, params.yaml, pyproject.toml, requirements*.txt
+└── README.md
 ```
 
 ---
 
 ## Getting Started
 
-### 1. Clone & set up environment
-
 ```bash
-git clone <repository-url>
-cd model
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-pip install -r requirements.txt
+git clone <repository-url> && cd model
+python -m venv .venv && .venv\Scripts\activate      # Windows; use source .venv/bin/activate on Linux/macOS
+pip install -r requirements.txt -r requirements-dev.txt
+
+python -m compileall -q src tests && pytest -q          # 42 passed
+python -m src.data.phase35 --config configs/data.yaml   # needs data/raw/*.jsonl (local snapshot)
+python -m src.training.train_cli --model textcnn --seed 42 --smoke
+python -m src.eval.tables --runs outputs/smoke --out outputs/smoke/tables
+python -m src.eval.plots  --runs outputs/smoke --out outputs/smoke/figures --tag "SMOKE"
+python -m src.models.registry --check
 ```
 
-### 2. Load dataset & baseline model
+Docker (CPU): `docker build -t prompt-injection-model -f docker/Dockerfile .` then `docker run --rm -v %cd%/data:/app/data -v %cd%/outputs:/app/outputs prompt-injection-model --model textcnn --seed 42 --smoke`.
 
-```python
-from datasets import load_dataset
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+---
 
-ds = load_dataset("neuralchemy/prompt-injection-Threat-Matrix", "multiclass")
-tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
-model = AutoModelForSequenceClassification.from_pretrained(
-    "distilbert-base-uncased", num_labels=7
-)
-```
+## Troubleshooting
 
-### 3. Run training (planned)
+| Symptom | Cause / fix |
+|---------|-------------|
+| `LeakageError: ... not frozen` or `audit failed` | You pointed at Phase 1-3 outputs or a modified split dir. Run `python -m src.data.phase35`; use `--allow-unfrozen` only for local debugging. |
+| `Model 'llama31_8b' is registered as BLOCKED` | Gated checkpoint. Export `HF_TOKEN` with approved access (env var / Kaggle Secret) and pass `--force-blocked`. |
+| `bitsandbytes` import error / QLoRA fallback recorded | `bitsandbytes` needs Linux + CUDA. The decoder loads without quantization (needs more VRAM) and records `fallback_reason` in `load_info`. |
+| Qwen3 "model type not recognised" | transformers >= 4.51 required (`requirements.txt` pins >= 4.51). |
+| Sweep job `blocked: compute tier ... not available` | `python -m src.kaggle.env` shows the detected VRAM; choose a GPU session or smaller models. |
+| Kaggle session killed mid-run | Re-run the notebook: `outputs/sweep/manifest.json` re-queues stale jobs and the trainer resumes from `last/`. |
+| Smoke metrics look poor | Expected: 300 train rows, 1 epoch. Smoke runs only verify the pipeline. |
 
-```bash
-python -m src.training.train_cli --model distilbert-base-uncased --config configs/default.yaml
-```
+---
+
+## Limitations and honesty notes
+
+- **No production training has been executed.** All 16 models are implemented and unit-tested; only TextCNN and DistilBERT were run as CPU smoke tests on 300-row subsets. No thesis-level performance numbers exist yet.
+- Decoder (7B/8B) paths were validated with a tiny random Llama config; real weights were never loaded locally (no CUDA on the development machine).
+- Leakage checks are heuristic (exact, template, Jaccard >= 0.85 word-3-gram, family). Semantic paraphrases below the threshold can still cross splits.
+- The dataset licence/provenance relies on the local snapshot metadata; the upstream page was inaccessible. Do not redistribute the data without verified permission.
+- `severity` has only three values in the snapshot; severity-regression experiments described in earlier drafts are not meaningful on this data and are not implemented.
+- Historical Phase 1-3 outputs (`data/processed/*.parquet`, `kaggle_package.zip`) are kept but are not valid evaluation data.
+
+---
+
+## Reference Papers
+
+Local copies in [`papers/`](papers/) · [Google Drive collection](https://drive.google.com/drive/folders/1K9nPcdnSYI6iGPgNNwDmbew5pM4voqwz)
+
+| Paper | Focus Area |
+|-------|------------|
+| `1.pdf` | Effectiveness of existing detection methods |
+| `4.pdf` - `6.pdf` | Real-world LLM compromise, AgentSentry, indirect injection |
+| `7.pdf`, `10.pdf` | Network intrusion & malicious traffic classification |
+| `8.pdf` - `9.pdf`, `11.pdf` | ARGUS - LLM agent defence |
+| `12.pdf` | CLAWGUARD - runtime agent security |
+| `13.pdf` - `15.pdf` | Hybrid defence, threat taxonomy, injection attacks |
+| `16.pdf` | Federated learning poisoning detection |
+| `17.pdf` - `18.pdf` | MetaSecAlign - secure foundation LLM |
+| `19.pdf` | Systematic literature review on LLM defences |
+| `20.pdf` - `21.pdf` | Retrieval barrier, TaintP2X injection detection |
 
 ---
 
 ## Citation
-
-If you use the **Threat Matrix** dataset in this thesis, please cite:
 
 ```bibtex
 @dataset{jajoo2026threatmatrix,
@@ -500,87 +401,20 @@ See [`LICENSE`](LICENSE) for the full MIT license text.
 
 | Component | License | Holder |
 |-----------|---------|--------|
-| **This repository** | [MIT License](LICENSE) | Md. Nazmus Sakib � Kazi Omar Faruq |
-| **Threat Matrix dataset** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) | Sanskar Jajoo / Neuralchemy |
-| **Pre-trained models** | Respective Hugging Face model licenses | Model authors |
+| **This repository** | [MIT License](LICENSE) | Md. Nazmus Sakib · Kazi Omar Faruq |
+| **Threat Matrix dataset** | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) (per local snapshot metadata) | Sanskar Jajoo / Neuralchemy |
+| **Pre-trained models** | Respective Hugging Face model licences (see `docs/MODEL_REGISTRY.md`) | Model authors |
 
-### MIT License (This Repository)
+The dataset is **not** covered by MIT: it is Creative Commons Attribution-NonCommercial 4.0. Attribute the authors, do not use it commercially, and do not redistribute it without verified permission. Full legal code: https://creativecommons.org/licenses/by-nc/4.0/legalcode
 
-You **may**:
-
-- Use, copy, modify, merge, publish, distribute, sublicense, and sell copies of this software
-- Use the software for personal, academic, research, and commercial projects
-
-You **must**:
-
-- Include the copyright notice and full MIT license text in all copies or substantial portions
-
-The software is provided **"AS IS"**, without warranty of any kind. The authors are not liable for any damages arising from use of this software.
-
-**Copyright � 2026** Md. Nazmus Sakib ([engrskib.com](https://engrskib.com)) and Kazi Omar Faruq.
-
-### CC BY-NC 4.0 (External Dataset Only)
-
-The [Threat Matrix dataset](https://huggingface.co/datasets/neuralchemy/prompt-injection-Threat-Matrix) is **not** covered by MIT. It uses **Creative Commons Attribution-NonCommercial 4.0**.
-
-You **may** (non-commercial only):
-
-- **Share** � copy and redistribute the dataset in any medium or format
-- **Adapt** � remix, transform, and build upon the dataset
-
-You **must**:
-
-- **Attribute** � give appropriate credit, provide a link to the license, and indicate if changes were made
-- **NonCommercial** � you may not use the dataset for commercial purposes without permission from the dataset author
-
-You **may not**:
-
-- Use the dataset commercially without explicit permission from Neuralchemy / Sanskar Jajoo
-- Apply legal terms or technological measures that legally restrict others from doing anything the license permits
-
-**Full CC BY-NC 4.0 legal code:** https://creativecommons.org/licenses/by-nc/4.0/legalcode
+**Copyright © 2026** Md. Nazmus Sakib ([engrskib.com](https://engrskib.com)) and Kazi Omar Faruq.
 
 ---
 
 <div align="center">
 
-**Daffodil International University � 7th Capstone Design � 2026**
+**Daffodil International University · 7th Capstone Design · 2026**
 
-**Md. Nazmus Sakib** ([engrskib.com](https://engrskib.com)) � **Kazi Omar Faruq**
-
-*LLM Security � Prompt Injection Detection � Deep Learning*
+*LLM Security · Prompt Injection Detection · Deep Learning*
 
 </div>
-
----
-
-## Quickstart: Docker (CPU-only)
-
-Build:
-
-```
-docker build -t prompt-injection-model -f docker/Dockerfile .
-```
-
-Run (mount outputs for checkpoints):
-
-```
-docker run --rm -v %cd%/outputs:/app/outputs prompt-injection-model --config configs/default.yaml
-```
-
-Use small batch sizes when training on CPU.
-
----
-
-## Quickstart: Kaggle
-
-1. Upload processed `data/processed/` to Kaggle as a dataset or use Hugging Face streaming.
-2. In a Kaggle notebook cell:
-
-```bash
-!git clone <repo-url> repo && cd repo
-!pip install -r requirements.txt
-!python -m src.training.train_cli --config configs/kaggle_debug.yaml
-```
-
-A starter notebook is provided at `notebooks/kaggle_run.md`.

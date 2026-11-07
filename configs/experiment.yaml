@@ -1,0 +1,30 @@
+# 16-model prompt-injection study: shared experiment configuration.
+# Per-model hyper-parameters live in configs/models/<model_id>.yaml (they override the
+# registry defaults); CLI flags override both.
+experiment_name: pi-threat-matrix-16model
+seed: 42
+seeds: [42, 43, 44]             # default 3 seeds per model (one job = one model x one seed)
+
+data:
+  splits_dir: data/processed/splits/v1_leakfree   # frozen Phase 3.5 output (leakage gate)
+  train_file: train.parquet                       # alternatives: train_balanced / train_augmented / train_adversarial
+  max_length_policy: 256                          # common policy; truncation rates are logged per split
+
+training_overrides: {}          # e.g. {deberta_v3: {batch_size: 8, grad_accum: 2}}
+
+smoke:                          # used by --smoke (CPU-friendly sanity runs, outputs/smoke/)
+  train_rows: 300
+  eval_rows: 100
+  epochs: 1
+  max_length: 64
+  batch_size: 16
+
+outputs:
+  runs_dir: outputs/runs
+  smoke_dir: outputs/smoke
+  figures_dir: outputs/figures
+  tables_dir: outputs/tables
+
+mlflow:
+  tracking_uri: file:./mlruns
+  experiment_name: prompt-injection

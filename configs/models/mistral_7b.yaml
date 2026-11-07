@@ -1,0 +1,26 @@
+# Auto-derived from src/models/registry.py defaults; edit training.* to tune.
+model:
+  model_id: mistral_7b
+  display_name: Mistral-7B (v0.3 base)
+  loader: decoder_lora
+  checkpoint: mistralai/Mistral-7B-v0.3
+  revision: caa1feb0e54d415e2df31207e5f4e273e33509b1
+  compute_tier: gpu_large_qlora
+  status_declared: implemented
+  access_note: ungated official BASE checkpoint (not Instruct). Needs ~16GB VRAM with
+    4-bit QLoRA; never loaded on the local CPU machine.
+training:
+  learning_rate: 0.0001
+  batch_size: 4
+  grad_accum: 8
+  epochs: 2
+  max_length: 256
+  precision: bf16
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  scheduler: cosine
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  quantization: 4bit
+  gradient_checkpointing: true

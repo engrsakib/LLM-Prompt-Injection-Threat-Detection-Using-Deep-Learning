@@ -1,0 +1,27 @@
+# Auto-derived from src/models/registry.py defaults; edit training.* to tune.
+model:
+  model_id: llama31_8b
+  display_name: Llama-3.1-8B
+  loader: decoder_lora
+  checkpoint: meta-llama/Llama-3.1-8B
+  revision: d04e592bb4f6aa9cfee91e2e20afa771667e1d4b
+  compute_tier: gpu_large_qlora
+  status_declared: blocked
+  access_note: 'BLOCKED: gated repository (manual approval). Provide HF_TOKEN with
+    approved access via environment variable / Kaggle Secret; the code path is identical
+    to Mistral/Qwen3.'
+training:
+  learning_rate: 0.0001
+  batch_size: 4
+  grad_accum: 8
+  epochs: 2
+  max_length: 256
+  precision: bf16
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  scheduler: cosine
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  quantization: 4bit
+  gradient_checkpointing: true

@@ -1,0 +1,24 @@
+# Kaggle debug profile: verifies the end-to-end path on a Kaggle GPU/CPU session in minutes.
+# Used by: python -m src.training.sweep --config configs/kaggle_debug.yaml
+experiment_name: pi-threat-matrix-kaggle-debug
+seed: 42
+seeds: [42]
+
+data:
+  splits_dir: /kaggle/input/prompt-injection-threat-matrix-v1-leakfree   # read-only dataset mount
+  train_file: train.parquet
+
+models: [textcnn, distilbert]   # cheap models only for the debug profile
+
+training_overrides:
+  distilbert: {epochs: 1, batch_size: 32, max_length: 128}
+  textcnn: {epochs: 2, batch_size: 64, max_length: 128}
+
+subset:                         # row caps applied by the sweep in debug mode
+  train_rows: 2000
+  eval_rows: 500
+
+outputs:
+  runs_dir: /kaggle/working/outputs/runs
+  sweep_manifest: /kaggle/working/outputs/sweep/manifest.json
+  figures_dir: /kaggle/working/outputs/figures

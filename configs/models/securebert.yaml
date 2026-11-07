@@ -1,0 +1,22 @@
+# Auto-derived from src/models/registry.py defaults; edit training.* to tune.
+model:
+  model_id: securebert
+  display_name: SecureBERT
+  loader: hf_encoder
+  checkpoint: ehsanaghaei/SecureBERT
+  revision: 3a47918dd874e5c769efd152b51c5756a953fb67
+  compute_tier: gpu_small
+  status_declared: implemented
+  access_note: 'CORRECTED identifier: README previously listed `ehsanaul/securebert-base`
+    (HF API: 401/not public). `ehsanaghaei/SecureBERT` is the public release; HF lists
+    `cisco-ai/SecureBERT2.0-base` as a newer version.'
+training:
+  learning_rate: 2.0e-05
+  batch_size: 32
+  grad_accum: 1
+  epochs: 4
+  max_length: 256
+  precision: fp32
+  warmup_ratio: 0.06
+  weight_decay: 0.01
+  scheduler: linear

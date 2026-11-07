@@ -74,3 +74,24 @@ stages:
       - data/processed/kaggle_package
       - data/processed/kaggle_package.zip
       - docs/REPRODUCIBILITY.md
+
+  # Phase 3.5 reads the local raw snapshot only (no network) and writes versioned,
+  # leakage-audited splits that all model training / evaluation must consume.
+  resplit:
+    cmd: python -m src.data.phase35 --config configs/data.yaml
+    deps:
+      - configs/data.yaml
+      - data/raw/train.jsonl
+      - data/raw/validation.jsonl
+      - data/raw/test.jsonl
+      - src/data/cleaning.py
+      - src/data/families.py
+      - src/data/resplit.py
+      - src/data/leakage.py
+      - src/data/phase35.py
+      - src/data/validation.py
+      - src/data/augment.py
+      - src/data/balancing.py
+      - src/data/adversarial_paraphrase.py
+    outs:
+      - data/processed/splits/v1_leakfree

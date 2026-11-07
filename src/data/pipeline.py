@@ -12,7 +12,7 @@ import yaml
 
 from src.data.cleaning import CleaningConfig, clean_text
 from src.data.dedup import deduplicate_records
-from src.data.ingest import SnapshotMetadata, ingest_dataset
+from src.data.ingest import ingest_dataset
 from src.data.reporting import write_distribution_reports
 from src.data.validation import filter_valid_records
 
