@@ -68,12 +68,12 @@ The research is grounded in recent work on prompt injection taxonomies, LLM agen
 | 16-model registry + shared classifier interface | implemented | `src/models/`, `docs/MODEL_REGISTRY.md` |
 | Trainer (resume, early stop, history), per-model configs | implemented | `src/training/` , `configs/models/*.yaml` |
 | Metrics, per-example predictions, tables, 17 figure types | implemented | `src/eval/` |
-| Resumable Kaggle sweep + thin notebook | implemented, **not yet executed on Kaggle** | `src/training/sweep.py`, `notebooks/kaggle_train.ipynb` |
+| Resumable Kaggle sweep + notebook | implemented. End-to-end Kaggle verification pending | `src/training/sweep.py`, `notebooks/kaggle_train.ipynb` |
 | CPU smoke runs (TextCNN, DistilBERT, 300 train rows) | **executed locally** | `outputs/smoke/` (not publication results) |
 | Full training of the 16 models (3 seeds) | **not executed** (requires GPU; see Kaggle workflow) | - |
 | Llama-3.1-8B | blocked (gated checkpoint; needs approved `HF_TOKEN`) | registry |
 
-Unit tests: `pytest` -> 42 passed (tiny synthetic fixtures, no network).
+Run the unit tests with `python -m pytest -q` (tiny synthetic fixtures, no network).
 
 ---
 
@@ -265,14 +265,13 @@ Seed variance (mean/std over seeds) and sampling uncertainty (family-level boots
 
 ## Kaggle workflow
 
-See [`notebooks/kaggle_run.md`](notebooks/kaggle_run.md) and the thin notebook [`notebooks/kaggle_train.ipynb`](notebooks/kaggle_train.ipynb) (cells only call `src/` modules).
+Follow the [Kaggle run guide](notebooks/kaggle_run.md) with the [training notebook](notebooks/kaggle_train.ipynb).
 
-1. Build the split package locally: `bash scripts/package_kaggle.sh` -> `data/processed/splits/v1_leakfree/kaggle_package_v1_leakfree.zip`.
-2. Upload it **manually** as a *private* Kaggle dataset (only if you have verified permission; licence CC BY-NC 4.0 per snapshot metadata). Nothing in the code logs in, publishes or submits.
-3. Add the repo (dataset or `git clone`), optionally an `HF_TOKEN` **Kaggle Secret** for gated checkpoints; tokens are only read from `os.environ`.
-4. `python -m src.kaggle.env` prints accelerator / VRAM / disk and the compute tiers available; the sweep marks unavailable tiers `blocked` instead of crashing.
-5. Start with `configs/kaggle_debug.yaml` (TextCNN + DistilBERT on 2,000 rows), then `configs/experiment.yaml`; `--budget-minutes` stops before the session limit; re-running resumes from `outputs/sweep/manifest.json`.
-6. Download `/kaggle/working/outputs` and copy into local `outputs/` to regenerate docs tables and figures.
+1. Build the code-only bundle from the updated repository and attach it as a private Kaggle dataset. The notebook can also use a complete checkout.
+2. Package the existing frozen splits with `python -m src.data.kaggle_package` or `bash scripts/package_kaggle.sh`. Extract `data/processed/splits/v1_leakfree/kaggle_upload_v1_leakfree.zip` and attach the files as a separate private dataset.
+3. Select a CUDA GPU such as T4 x2 and enable Internet for package and uncached checkpoint downloads. Run the notebook in order and verify `REPOSITORY IMPORT VERIFIED` and `LOCAL FROZEN MANIFEST VALIDATED`.
+4. Use `configs/kaggle_debug.yaml` for TextCNN and DistilBERT with seed 42. After both succeed, use `configs/experiment.yaml` for full runs with seeds 42, 43, and 44.
+5. Save and download `/kaggle/working/outputs`. Debug artifacts and their sweep manifest live in `outputs/debug/`. Full-study artifacts use the root `outputs/` layout.
 
 ---
 
@@ -285,6 +284,7 @@ data/processed/splits/v1_leakfree/        # Phase 3.5 (frozen; audit PASSED)
   train|validation|test.parquet, train_balanced|augmented|adversarial.parquet
   manifest.json, dropped_rows.jsonl, family_assignments.parquet
   reports/leakage_report*.json, subsets/, kaggle_package/, kaggle_package_v1_leakfree.zip
+  kaggle_upload_v1_leakfree.zip             # upload bundle from the canonical frozen artifacts
 outputs/smoke/<model>_seed<seed>/         # CPU smoke runs (not publication results)
 outputs/runs/<model>/seed_<seed>/         # production runs (none yet)
 outputs/sweep/manifest.json               # sweep state
@@ -341,12 +341,12 @@ Docker (CPU): `docker build -t prompt-injection-model -f docker/Dockerfile .` th
 
 | Symptom | Cause / fix |
 |---------|-------------|
-| `LeakageError: ... not frozen` or `audit failed` | You pointed at Phase 1-3 outputs or a modified split dir. Run `python -m src.data.phase35`; use `--allow-unfrozen` only for local debugging. |
+| `LeakageError: ... not frozen` or `audit failed` | Check the selected split directory. For a stale Kaggle package, rebuild the archive from the existing canonical frozen split with `python -m src.data.kaggle_package`. |
 | `Model 'llama31_8b' is registered as BLOCKED` | Gated checkpoint. Export `HF_TOKEN` with approved access (env var / Kaggle Secret) and pass `--force-blocked`. |
 | `bitsandbytes` import error / QLoRA fallback recorded | `bitsandbytes` needs Linux + CUDA. The decoder loads without quantization (needs more VRAM) and records `fallback_reason` in `load_info`. |
 | Qwen3 "model type not recognised" | transformers >= 4.51 required (`requirements.txt` pins >= 4.51). |
 | Sweep job `blocked: compute tier ... not available` | `python -m src.kaggle.env` shows the detected VRAM; choose a GPU session or smaller models. |
-| Kaggle session killed mid-run | Re-run the notebook: `outputs/sweep/manifest.json` re-queues stale jobs and the trainer resumes from `last/`. |
+| Kaggle session killed mid-run | Restore the saved output tree and rerun with the same profile. The sweep requeues stale running jobs and the trainer resumes from `last/` when present. |
 | Smoke metrics look poor | Expected: 300 train rows, 1 epoch. Smoke runs only verify the pipeline. |
 
 ---

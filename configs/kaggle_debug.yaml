@@ -5,7 +5,7 @@ seed: 42
 seeds: [42]
 
 data:
-  splits_dir: /kaggle/input/prompt-injection-threat-matrix-v1-leakfree   # read-only dataset mount
+  splits_dir: data/processed/splits/v1_leakfree  # Kaggle entry points pass the resolved input path.
   train_file: train.parquet
 
 models: [textcnn, distilbert]   # cheap models only for the debug profile
@@ -19,6 +19,6 @@ subset:                         # row caps applied by the sweep in debug mode
   eval_rows: 500
 
 outputs:
-  runs_dir: /kaggle/working/outputs/runs
-  sweep_manifest: /kaggle/working/outputs/sweep/manifest.json
-  figures_dir: /kaggle/working/outputs/figures
+  runs_dir: outputs/debug/runs
+  sweep_manifest: outputs/debug/sweep/manifest.json
+  figures_dir: outputs/debug/figures

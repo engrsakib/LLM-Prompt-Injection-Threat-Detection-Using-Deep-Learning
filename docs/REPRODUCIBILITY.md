@@ -72,6 +72,7 @@ they are not used for evaluation.
 
 ## Artifact hashes (SHA-256) - Phase 3.5 `v1_leakfree`
 
-See `data/processed/splits/v1_leakfree/manifest.json -> artifact_hashes_sha256` (the directory is gitignored; the
-manifest is the source of truth and is included in the Kaggle package). Historical Phase 1-3 hashes are preserved
-in `data/processed/reports/reproducibility_manifest.json`.
+See `data/processed/splits/v1_leakfree/manifest.json -> artifact_hashes_sha256`. The gitignored
+split directory's canonical manifest is the source of truth. To package that manifest and
+the existing splits for Kaggle, follow the [Kaggle run guide](../notebooks/kaggle_run.md).
+Historical Phase 1-3 hashes are preserved in `data/processed/reports/reproducibility_manifest.json`.

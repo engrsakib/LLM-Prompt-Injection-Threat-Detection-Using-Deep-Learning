@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import shutil
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pandas as pd
 
-from src.data.constants import DATASET_LICENSE, DATASET_NAME, DATASET_URL
+from src.data.constants import DATASET_LICENSE, DATASET_NAME, DATASET_URL, SPLITS
 from src.data.reproducibility import sha256_file
-
 
 KAGGLE_FILES = (
     "train.parquet",
@@ -175,3 +176,72 @@ Generated for capstone thesis research (DIU).
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
+
+
+def package_frozen_splits(splits_dir: Path, output: Path | None = None) -> Path:
+    """Validate and archive a copy of an existing Phase 3.5 manifest and its Parquets."""
+    from src.data.phase35 import load_frozen_manifest
+
+    splits_dir = splits_dir.resolve()
+    source_manifest = splits_dir / "manifest.json"
+    if not source_manifest.is_file():
+        raise FileNotFoundError(f"No canonical frozen manifest at {source_manifest}")
+
+    output = output or splits_dir / f"kaggle_upload_{splits_dir.name}.zip"
+    if output.suffix.lower() != ".zip":
+        raise ValueError(f"Output archive must end in .zip: {output}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    with TemporaryDirectory(prefix=".kaggle-package-", dir=output.parent) as temp_dir:
+        staging = Path(temp_dir)
+        staged_manifest = staging / "manifest.json"
+        shutil.copy2(source_manifest, staged_manifest)
+        manifest = json.loads(staged_manifest.read_text(encoding="utf-8"))
+        hashes = manifest.get("artifact_hashes_sha256", {})
+        missing_hashes = sorted({f"{split}.parquet" for split in SPLITS} - hashes.keys())
+        if missing_hashes:
+            raise ValueError(
+                f"Missing split hashes in {source_manifest}: {', '.join(missing_hashes)}"
+            )
+
+        artifact_names = sorted(hashes)
+        for name in artifact_names:
+            if not name.endswith(".parquet") or any(c in name for c in "/\\:"):
+                raise ValueError(
+                    f"Invalid Phase 3.5 artifact name in {source_manifest}: {name}"
+                )
+            source = splits_dir / name
+            if not source.is_file():
+                raise FileNotFoundError(f"Missing frozen split artifact: {source}")
+            shutil.copy2(source, staging / name)
+
+        # Validate the staged bytes before publishing the ZIP, even if source files changed during copying.
+        load_frozen_manifest(staging)
+        archive_path = staging / "archive.zip"
+        with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for name in ("manifest.json", *artifact_names):
+                archive.write(staging / name, arcname=name)
+        archive_path.replace(output)
+    return output
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Package an existing frozen Phase 3.5 split for Kaggle."
+    )
+    parser.add_argument(
+        "--splits-dir", type=Path, default=Path("data/processed/splits/v1_leakfree")
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="ZIP file (default: kaggle_upload_<split directory name>.zip inside the split directory)",
+    )
+    args = parser.parse_args(argv)
+    output = package_frozen_splits(args.splits_dir, args.output)
+    print(f"Kaggle package ready: {output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

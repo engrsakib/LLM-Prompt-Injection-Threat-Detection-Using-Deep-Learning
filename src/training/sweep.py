@@ -33,6 +33,7 @@ from src.kaggle.env import TIER_MIN_VRAM_GB, detect
 from src.models.registry import get_spec, list_model_ids
 
 STATES = ("queued", "running", "succeeded", "failed", "blocked", "skipped")
+BUDGET_SKIP = "wall-clock budget exhausted; re-run to continue"
 
 
 def _now() -> str:
@@ -57,16 +58,48 @@ def job_key(model_id: str, seed: int) -> str:
     return f"{model_id}/seed_{seed}"
 
 
-def plan_jobs(manifest: dict[str, Any], models: list[str], seeds: list[int], env, force_blocked: bool = False) -> None:
-    """Add missing jobs; mark blocked ones; re-queue stale running jobs."""
+def plan_jobs(
+    manifest: dict[str, Any],
+    models: list[str],
+    seeds: list[int],
+    env,
+    force_blocked: bool = False,
+    *,
+    retry_failed: bool = False,
+) -> None:
+    """Plan requested jobs and re-queue resumable work."""
     for model_id in models:
         spec = get_spec(model_id)
         for seed in seeds:
             key = job_key(model_id, seed)
-            job = manifest["jobs"].get(key, {"model_id": model_id, "seed": seed, "state": "queued", "attempts": 0, "history": []})
+            job = manifest["jobs"].get(
+                key,
+                {
+                    "model_id": model_id,
+                    "seed": seed,
+                    "state": "queued",
+                    "attempts": 0,
+                    "history": [],
+                },
+            )
             if job["state"] == "running":
                 job["state"] = "queued"
-                job["history"].append({"at": _now(), "event": "stale running job re-queued"})
+                job["history"].append(
+                    {"at": _now(), "event": "stale running job re-queued"}
+                )
+            if job["state"] == "skipped" and job.get("skipped_reason") == BUDGET_SKIP:
+                job["state"] = "queued"
+                job.pop("skipped_reason")
+            if job["state"] == "failed" and retry_failed:
+                job["state"] = "queued"
+                job["history"].append(
+                    {
+                        "at": _now(),
+                        "event": "failed job re-queued",
+                        "error": job.pop("error", ""),
+                    }
+                )
+                job.pop("traceback", None)
             if job["state"] in ("queued", "blocked"):
                 reason = None
                 if spec.status == "blocked" and not force_blocked:
@@ -86,26 +119,37 @@ def plan_jobs(manifest: dict[str, Any], models: list[str], seeds: list[int], env
 def run_sweep(args: argparse.Namespace) -> dict[str, Any]:
     cfg = yaml.safe_load(Path(args.config).read_text(encoding="utf-8")) or {}
     models = args.models or cfg.get("models") or list_model_ids()
-    seeds = args.seeds or cfg.get("seeds") or [42, 43, 44]
+    seeds = [int(seed) for seed in (args.seeds or cfg.get("seeds") or [42, 43, 44])]
     outputs = cfg.get("outputs", {})
     runs_dir = Path(args.runs_dir or outputs.get("runs_dir", "outputs/runs"))
-    manifest_path = Path(args.manifest or outputs.get("sweep_manifest", "outputs/sweep/manifest.json"))
+    manifest_path = Path(
+        args.manifest or outputs.get("sweep_manifest", "outputs/sweep/manifest.json")
+    )
     env = detect(runs_dir.parent)
     manifest = load_manifest(manifest_path)
     manifest["environment"] = env.to_dict()
     manifest["config"] = str(args.config)
-    plan_jobs(manifest, models, [int(s) for s in seeds], env, force_blocked=args.force_blocked)
+    selected_jobs = {job_key(model, seed) for model in models for seed in seeds}
+    manifest["selection"] = sorted(selected_jobs)
+    plan_jobs(
+        manifest,
+        models,
+        seeds,
+        env,
+        force_blocked=args.force_blocked,
+        retry_failed=args.retry_failed,
+    )
     save_manifest(manifest_path, manifest)
 
     from src.training import train_cli
 
     deadline = time.time() + args.budget_minutes * 60 if args.budget_minutes else None
     for key, job in manifest["jobs"].items():
-        if job["state"] != "queued":
+        if key not in selected_jobs or job["state"] != "queued":
             continue
         if deadline and time.time() > deadline:
             job["state"] = "skipped"
-            job["skipped_reason"] = "wall-clock budget exhausted; re-run to continue"
+            job["skipped_reason"] = BUDGET_SKIP
             continue
         if args.dry_run:
             continue
@@ -113,8 +157,15 @@ def run_sweep(args: argparse.Namespace) -> dict[str, Any]:
         job["attempts"] += 1
         save_manifest(manifest_path, manifest)
         cli_args = [
-            "--model", job["model_id"], "--seed", str(job["seed"]), "--config", str(args.config),
-            "--output-dir", str(runs_dir), "--resume",
+            "--model",
+            job["model_id"],
+            "--seed",
+            str(job["seed"]),
+            "--config",
+            str(args.config),
+            "--output-dir",
+            str(runs_dir),
+            "--resume",
         ]
         if args.splits_dir:
             cli_args += ["--splits-dir", args.splits_dir]
@@ -128,16 +179,37 @@ def run_sweep(args: argparse.Namespace) -> dict[str, Any]:
             cli_args.append("--smoke")
         try:
             summary = train_cli.run(train_cli.build_parser().parse_args(cli_args))
-            job.update({"state": "succeeded", "finished_at": _now(), "run_id": summary["run_id"], "test_f1_macro": summary["test_f1_macro"], "wall_time_sec": summary["wall_time_sec"]})
+            job.update(
+                {
+                    "state": "succeeded",
+                    "finished_at": _now(),
+                    "run_id": summary["run_id"],
+                    "test_f1_macro": summary["test_f1_macro"],
+                    "wall_time_sec": summary["wall_time_sec"],
+                }
+            )
         except SystemExit as exc:  # blocked model refused by train_cli
-            job.update({"state": "blocked", "blocked_reason": str(exc), "finished_at": _now()})
+            job.update(
+                {"state": "blocked", "blocked_reason": str(exc), "finished_at": _now()}
+            )
         except Exception as exc:  # noqa: BLE001
-            job.update({"state": "failed", "finished_at": _now(), "error": f"{type(exc).__name__}: {exc}", "traceback": traceback.format_exc()[-4000:]})
+            job.update(
+                {
+                    "state": "failed",
+                    "finished_at": _now(),
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "traceback": traceback.format_exc()[-4000:],
+                }
+            )
             if "out of memory" in str(exc).lower():
-                job["blocked_reason"] = "CUDA OOM - reduce batch_size / max_length or move to a larger tier"
+                job["blocked_reason"] = (
+                    "CUDA OOM - reduce batch_size / max_length or move to a larger tier"
+                )
         save_manifest(manifest_path, manifest)
 
-    counts = {s: sum(1 for j in manifest["jobs"].values() if j["state"] == s) for s in STATES}
+    counts = {
+        s: sum(1 for j in manifest["jobs"].values() if j["state"] == s) for s in STATES
+    }
     manifest["summary"] = counts
     save_manifest(manifest_path, manifest)
     return manifest
@@ -152,11 +224,23 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--manifest", default=None)
     p.add_argument("--splits-dir", default=None)
     p.add_argument("--train-file", default=None)
-    p.add_argument("--budget-minutes", type=float, default=None, help="Stop launching new jobs after this many minutes")
+    p.add_argument(
+        "--budget-minutes",
+        type=float,
+        default=None,
+        help="Stop launching new jobs after this many minutes",
+    )
     p.add_argument("--offline", action="store_true")
     p.add_argument("--force-blocked", action="store_true")
+    p.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="Re-queue failed jobs in this selection",
+    )
     p.add_argument("--smoke", action="store_true")
-    p.add_argument("--dry-run", action="store_true", help="Only plan / update the manifest")
+    p.add_argument(
+        "--dry-run", action="store_true", help="Only plan / update the manifest"
+    )
     return p
 
 
@@ -165,9 +249,16 @@ def main(argv: list[str] | None = None) -> int:
     manifest = run_sweep(args)
     print(json.dumps(manifest["summary"], indent=2))
     for key, job in manifest["jobs"].items():
-        extra = job.get("blocked_reason") or job.get("error") or job.get("skipped_reason") or ""
+        extra = (
+            job.get("blocked_reason")
+            or job.get("error")
+            or job.get("skipped_reason")
+            or ""
+        )
         print(f"{job['state']:<10} {key:<28} {extra[:100]}")
-    return 0 if manifest["summary"]["failed"] == 0 else 1
+    return int(
+        any(manifest["jobs"][key]["state"] == "failed" for key in manifest["selection"])
+    )
 
 
 if __name__ == "__main__":

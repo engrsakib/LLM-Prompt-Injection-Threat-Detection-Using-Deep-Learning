@@ -355,10 +355,10 @@ def run_phase35(config: Phase35Config) -> dict:
 
     kaggle_manifest: dict = {}
     if config.build_kaggle_package:
-        files = tuple(["train.parquet", "validation.parquet", "test.parquet", "manifest.json", *TRAIN_VARIANT_FILES])
-        # manifest.json is written below; write a provisional copy first so it is included.
+        files = ("manifest.json", *hashes)
+        # The archive needs the frozen split manifest without its own package hashes.
         _write_manifest(out_dir, config, snapshot_meta, raw_counts, dropped, family_report, resplit_report, dedup_stats,
-                        final, leakage, variant_reports, variant_leakage, hashes, phase2_reports, technique_report, {}, frozen=False)
+                        final, leakage, variant_reports, variant_leakage, hashes, phase2_reports, technique_report, {}, frozen=True)
         kaggle_manifest = package_kaggle_dataset(
             out_dir,
             output_dir=out_dir / "kaggle_package",

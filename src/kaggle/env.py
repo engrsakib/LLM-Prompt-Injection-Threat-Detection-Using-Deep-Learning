@@ -1,8 +1,7 @@
 """Detect the execution environment (Kaggle / local), accelerator, VRAM, disk and recommend a tier.
 
-Pure inspection: no network, no credentials, no Kaggle API. Credentials (``HF_TOKEN``) are only
-ever read from environment variables; on Kaggle attach them as a Secret which Kaggle exposes to
-``os.environ`` when enabled for the notebook.
+Pure inspection: no network, no credentials, no Kaggle API. Gated model access is detected via
+the ``HF_TOKEN`` environment variable.
 
 CLI::
 
@@ -23,7 +22,12 @@ KAGGLE_INPUT = Path("/kaggle/input")
 KAGGLE_WORKING = Path("/kaggle/working")
 
 # Which compute tiers (see registry.compute_tier) a given free VRAM budget can serve.
-TIER_MIN_VRAM_GB = {"cpu_ok": 0.0, "gpu_small": 6.0, "gpu_medium": 12.0, "gpu_large_qlora": 15.0}
+TIER_MIN_VRAM_GB = {
+    "cpu_ok": 0.0,
+    "gpu_small": 6.0,
+    "gpu_medium": 12.0,
+    "gpu_large_qlora": 15.0,
+}
 
 
 @dataclass
@@ -50,7 +54,11 @@ class EnvInfo:
 
 def detect(working_dir: str | Path | None = None) -> EnvInfo:
     is_kaggle = KAGGLE_INPUT.exists() or "KAGGLE_KERNEL_RUN_TYPE" in os.environ
-    work = Path(working_dir) if working_dir else (KAGGLE_WORKING if is_kaggle else Path("outputs"))
+    work = (
+        Path(working_dir)
+        if working_dir
+        else (KAGGLE_WORKING if is_kaggle else Path("outputs"))
+    )
     notes: list[str] = []
     try:
         import torch
@@ -58,7 +66,10 @@ def detect(working_dir: str | Path | None = None) -> EnvInfo:
         cuda = torch.cuda.is_available()
         count = torch.cuda.device_count() if cuda else 0
         names = [torch.cuda.get_device_name(i) for i in range(count)]
-        mem = [round(torch.cuda.get_device_properties(i).total_memory / 1e9, 2) for i in range(count)]
+        mem = [
+            round(torch.cuda.get_device_properties(i).total_memory / 1e9, 2)
+            for i in range(count)
+        ]
         bf16 = bool(cuda and torch.cuda.is_bf16_supported())
     except Exception as exc:  # noqa: BLE001
         cuda, count, names, mem, bf16 = False, 0, [], [], False
@@ -74,14 +85,24 @@ def detect(working_dir: str | Path | None = None) -> EnvInfo:
     except OSError:
         disk = float("nan")
     max_mem = max(mem) if mem else 0.0
-    tiers = [t for t, need in TIER_MIN_VRAM_GB.items() if (max_mem >= need if need > 0 else True)]
+    tiers = [
+        t
+        for t, need in TIER_MIN_VRAM_GB.items()
+        if (max_mem >= need if need > 0 else True)
+    ]
     if "gpu_large_qlora" in tiers and not bnb:
         tiers.remove("gpu_large_qlora")
-        notes.append("bitsandbytes missing: 4-bit QLoRA tier disabled (install bitsandbytes on Linux+CUDA)")
+        notes.append(
+            "bitsandbytes missing: 4-bit QLoRA tier disabled (install bitsandbytes on Linux+CUDA)"
+        )
     if not cuda:
-        notes.append("no CUDA device: only cpu_ok tier is realistic; decoder LLMs must not be loaded")
+        notes.append(
+            "no CUDA device: only cpu_ok tier is realistic; decoder LLMs must not be loaded"
+        )
     if is_kaggle and disk < 15:
-        notes.append("less than 15 GB free in /kaggle/working: keep checkpoints small / delete 'last' dirs")
+        notes.append(
+            "less than 15 GB free in /kaggle/working: keep checkpoints small / delete 'last' dirs"
+        )
     return EnvInfo(
         is_kaggle=is_kaggle,
         input_dir=str(KAGGLE_INPUT if is_kaggle else Path("data").resolve()),
@@ -101,20 +122,71 @@ def detect(working_dir: str | Path | None = None) -> EnvInfo:
     )
 
 
-def find_kaggle_splits_dir(preferred: str | Path | None = None) -> Path | None:
-    """Locate a mounted dataset directory containing ``manifest.json`` + ``train.parquet``."""
-    candidates = [Path(preferred)] if preferred else []
-    if KAGGLE_INPUT.exists():
-        candidates += sorted(KAGGLE_INPUT.glob("*"))
-    for cand in candidates:
-        for path in [cand, *cand.glob("*")]:
-            if (path / "manifest.json").exists() and (path / "train.parquet").exists():
-                return path
-    return None
+def find_kaggle_splits_dir(
+    preferred: str | Path | None = None, *, input_dir: Path = KAGGLE_INPUT
+) -> Path:
+    """Resolve an exact override or a unique extracted dataset on the input mount."""
+    if preferred:
+        root = Path(preferred).expanduser().resolve()
+        if not (root / "manifest.json").is_file():
+            raise FileNotFoundError(
+                f"SPLITS_SOURCE must be an extracted directory with manifest.json: {root}"
+            )
+        return root
+
+    candidates = sorted(
+        path.parent
+        for path in input_dir.rglob("manifest.json")
+        if any(
+            (path.parent / name).is_file()
+            for name in ("train.parquet", "validation.parquet", "test.parquet")
+        )
+    )
+    if not candidates:
+        raise FileNotFoundError(
+            f"No extracted frozen split bundle under {input_dir}. "
+            "Attach the manifest and Parquet files or set SPLITS_SOURCE."
+        )
+    if len(candidates) > 1:
+        raise ValueError(
+            f"Multiple split bundles found. Set SPLITS_SOURCE to one of: {', '.join(map(str, candidates))}"
+        )
+    return candidates[0].resolve()
+
+
+def validate_kaggle_splits(root: Path) -> dict[str, Any]:
+    """Apply the existing leakage gate and require the complete Kaggle split bundle."""
+    from src.data.phase35 import TRAIN_VARIANT_FILES, load_frozen_manifest
+
+    manifest = load_frozen_manifest(root)
+    if manifest.get("version") != "v1_leakfree":
+        raise ValueError(
+            f"Expected the v1_leakfree split bundle at {root}, got {manifest.get('version')!r}"
+        )
+    hashes = manifest["artifact_hashes_sha256"]
+    required = {
+        "train.parquet",
+        "validation.parquet",
+        "test.parquet",
+        *TRAIN_VARIANT_FILES,
+    }
+    undeclared = sorted(required - hashes.keys())
+    if undeclared:
+        raise ValueError(
+            f"Split bundle at {root} is missing hashes for: {', '.join(undeclared)}"
+        )
+    missing = sorted(name for name in hashes if not (root / name).is_file())
+    if missing:
+        raise FileNotFoundError(
+            f"Incomplete split bundle at {root}. Missing: {', '.join(missing)}"
+        )
+    return manifest
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Print environment / accelerator info as JSON.")
+    p = argparse.ArgumentParser(
+        description="Print environment / accelerator info as JSON."
+    )
     p.add_argument("--working-dir", default=None)
     args = p.parse_args(argv)
     print(json.dumps(detect(args.working_dir).to_dict(), indent=2))
